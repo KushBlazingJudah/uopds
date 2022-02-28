@@ -9,6 +9,7 @@ import (
 	"io/ioutil"
 	"mime"
 	"os"
+	"path/filepath"
 	"syscall"
 	"time"
 )
@@ -58,7 +59,7 @@ func (pkg opfPackage) genEntry() (entry, error) {
 		Links: []link{
 			{
 				Rel:  "http://opds-spec.org/acquisition",
-				Href: pkg.File,
+				Href: root + "/books/" + pkg.File,
 				Type: "application/epub+zip",
 			},
 		},
@@ -93,8 +94,8 @@ func (pkg opfPackage) genEntry() (entry, error) {
 
 		e.Links = append(e.Links, link{
 			Rel:  "http://opds-spec.org/image",
-			Href: coverDir + "/" + fname,
-			Type: "image/" + pkg.CoverType,
+			Href: root + "/covers/" + fname,
+			Type: pkg.CoverType,
 		})
 	}
 
@@ -103,7 +104,7 @@ func (pkg opfPackage) genEntry() (entry, error) {
 }
 
 func readOpfFromEpub(file string) (opfPackage, error) {
-	epub, err := os.Open(file)
+	epub, err := os.Open(filepath.Join(bookDir, file))
 	if err != nil {
 		return opfPackage{}, err
 	}
@@ -150,8 +151,6 @@ func readOpfFromEpub(file string) (opfPackage, error) {
 	// try to read cover
 	for _, i := range pkg.Manifest.Items {
 		if i.ID == "cover" {
-			fmt.Println(i.Href)
-
 			cover, err := zr.Open(i.Href)
 			if err != nil {
 				return pkg, err

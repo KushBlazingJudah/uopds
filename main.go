@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/xml"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
@@ -10,17 +11,22 @@ import (
 	"time"
 )
 
-const root = ""
-const staticDir = "static"
-const coverDir = staticDir + "/covers"
-const bookDir = staticDir + "/books"
+var (
+	root, coverDir, bookDir string
+)
 
 func main() {
-	testFeed := feed{
+	flag.StringVar(&root, "root", "", "root directory for the http server")
+	flag.StringVar(&coverDir, "covers", "covers", "directory for cover images")
+	flag.StringVar(&bookDir, "books", "books", "directory for books")
+
+	flag.Parse()
+
+	rootFeed := feed{
 		Id: &uuidurn{},
 		Links: []link{
-			link{Rel: "self", Href: root + "/root.xml", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
-			link{Rel: "start", Href: root + "/root.xml", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
+			{Rel: "self", Href: root + "/", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
+			{Rel: "start", Href: root + "/", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
 		},
 		Title:   "uopds",
 		Updated: time.Now(),
@@ -28,76 +34,7 @@ func main() {
 			Name: "uopds",
 			URI:  &uuidurn{},
 		},
-		Entries: []entry{
-			entry{
-				Title: "here",
-				Links: []link{{
-					Rel:  "http://opds-spec.org/sort/new",
-					Href: "/root.xml",
-					Type: "application/atom+xml;profile=opds-catalog;kind=acquisition",
-				}},
-				Updated: time.Now(),
-				ID:      &uuidurn{},
-				Content: content{Type: "text", Content: "wow"},
-			},
-			entry{
-				Title: "test entry",
-				Links: []link{{
-					Rel:  "http://opds-spec.org/sort/new",
-					Href: "/new.xml",
-					Type: "application/atom+xml;profile=opds-catalog;kind=acquisition",
-				}},
-				Updated: time.Now(),
-				ID:      &uuidurn{},
-				Content: content{Type: "text", Content: "cool"},
-			},
-		},
-	}
-
-	newFeed := feed{
-		Id: &uuidurn{},
-		Links: []link{
-			link{Rel: "self", Href: root + "/new.xml", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
-			link{Rel: "start", Href: root + "/root.xml", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
-			link{Rel: "up", Href: root + "/root.xml", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
-		},
-
-		Title:   "New files",
-		Updated: time.Now(),
-		Author: author{
-			Name: "uopds",
-			URI:  &uuidurn{},
-		},
-
-		Entries: []entry{
-			entry{
-				Title: "my cool book",
-				Links: []link{
-					{
-						Rel:  "http://opds-spec.org/thumbnail",
-						Href: "/static/test.png",
-						Type: "image/png",
-					},
-					{
-						Rel:  "http://opds-spec.org/image",
-						Href: "/static/test.png",
-						Type: "image/png",
-					},
-					{
-						Rel:  "http://opds-spec.org/acquisition",
-						Href: "/static/test.epub",
-						Type: "application/epub+zip",
-					},
-				},
-				Updated: time.Now(),
-				ID:      &uuidurn{},
-				Content: content{Type: "text", Content: "this book is really cool"},
-				Author: author{
-					Name: "cool book writer",
-					URI:  &uuidurn{},
-				},
-			},
-		},
+		Entries: []entry{},
 	}
 
 	// generate entries in new catalog
@@ -113,7 +50,7 @@ func main() {
 		}
 
 		// generate an entry for it
-		opf, err := readOpfFromEpub(filepath.Join(bookDir, file.Name()))
+		opf, err := readOpfFromEpub(file.Name())
 		if err != nil {
 			panic(err)
 		}
@@ -123,13 +60,11 @@ func main() {
 			panic(err)
 		}
 
-		newFeed.Entries = append(newFeed.Entries, e)
+		rootFeed.Entries = append(rootFeed.Entries, e)
 	}
 
-	http.HandleFunc(root+"/root.xml", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s: GET root", r.RemoteAddr)
-
-		out, err := xml.Marshal(testFeed)
+	http.HandleFunc(root+"/", func(w http.ResponseWriter, r *http.Request) {
+		out, err := xml.Marshal(rootFeed)
 		if err != nil {
 			w.WriteHeader(503)
 			fmt.Fprint(w, err)
@@ -139,20 +74,8 @@ func main() {
 		w.Write(out)
 	})
 
-	http.HandleFunc(root+"/new.xml", func(w http.ResponseWriter, r *http.Request) {
-		log.Printf("%s: GET new", r.RemoteAddr)
-
-		out, err := xml.Marshal(newFeed)
-		if err != nil {
-			w.WriteHeader(503)
-			fmt.Fprint(w, err)
-			return
-		}
-
-		w.Write(out)
-	})
-
-	http.Handle(root+"/static/", http.StripPrefix(root+"/static/", http.FileServer(http.Dir("./static"))))
+	http.Handle(root+"/covers/", http.StripPrefix(root+"/covers/", http.FileServer(http.Dir(coverDir))))
+	http.Handle(root+"/books/", http.StripPrefix(root+"/books/", http.FileServer(http.Dir(bookDir))))
 
 	log.Fatal(http.ListenAndServe(":8080", nil))
 }
