@@ -1,157 +1,180 @@
 package main
 
 import (
-	"encoding/csv"
-	"errors"
-	"fmt"
-	"io"
-	"os"
-	"strconv"
+	"context"
+	"database/sql"
 	"sync"
-	"time"
+
+	_ "github.com/mattn/go-sqlite3"
 )
 
 const timeFmt = "2006-01-02"
 
-type row struct {
-	path             string
-	cover, coverType string
+const sqlSchema = `
+CREATE TABLE IF NOT EXISTS books(
+	id INTEGER NOT NULL PRIMARY KEY,
 
-	title, author, language, summary string
+	path TEXT NOT NULL,
+	hash BLOB NOT NULL,
+	cover TEXT,
+	coverType TEXT,
 
-	date string
-}
+	title TEXT,
+	author TEXT,
+	language TEXT,
+	summary TEXT,
+
+	date TEXT,
+
+	UNIQUE(path)
+);
+`
 
 type database struct {
-	file string
-	rows map[int64]row
+	conn *sql.DB
 	mut  sync.Mutex
-	i    int64
 }
 
-func (r row) entry() entry {
-	e := entry{
-		Title:  r.title,
-		Author: author{Name: r.author},
-		Links: []link{
-			{
-				Rel:  "http://opds-spec.org/acquisition",
-				Href: root + "/books/" + r.path,
-				Type: "application/epub+zip",
-			},
-		},
-		ID:       &uuidurn{},
-		Updated:  time.Now(),
-		Summary:  "a book",
-		Date:     r.date,
-		Language: r.language,
-		Content:  content{Type: "text", Content: r.summary},
-	}
-
-	// add cover if it exists
-	if len(r.cover) > 0 {
-		e.Links = append(e.Links, link{
-			Rel:  "http://opds-spec.org/image",
-			Href: root + "/covers/" + r.cover,
-			Type: r.coverType,
-		})
-	}
-
-	return e
-}
-
-func (db *database) add(entry entry) {
-	db.mut.Lock()
-	defer db.mut.Unlock()
-
-	i := db.i
-	db.i++
-
-	r := row{
-		path:      entry.sourceFile,
-		cover:     entry.coverFile,
-		coverType: entry.coverType,
-		title:     entry.Title,
-		author:    entry.Author.Name,
-		language:  entry.Language,
-		summary:   entry.Summary,
-		date:      entry.Date,
-	}
-
-	db.rows[i] = r
-}
-
-func (db *database) commit() error {
-	file, err := os.OpenFile(db.file, os.O_WRONLY, 0o644)
-	if err != nil {
-		return err
-	}
-	defer file.Close()
-
-	csvw := csv.NewWriter(file)
-
-	db.mut.Lock()
-	defer db.mut.Unlock()
-
-	for key, row := range db.rows {
-		out := []string{
-			fmt.Sprint(key),
-			fmt.Sprint(row.path), fmt.Sprint(row.cover), fmt.Sprint(row.coverType),
-			fmt.Sprint(row.title), fmt.Sprint(row.author),
-			fmt.Sprint(row.language), fmt.Sprint(row.summary),
-			timeFmt,
-		}
-
-		if err := csvw.Write(out); err != nil {
-			return err
-		}
-	}
-
-	csvw.Flush()
-	return csvw.Error()
-}
-
-func openDatabase(file string) (*database, error) {
-	fp, err := os.OpenFile(file, os.O_RDONLY|os.O_CREATE, 0o644)
+func openDatabase(path string) (*database, error) {
+	conn, err := sql.Open("sqlite3", path)
 	if err != nil {
 		return nil, err
 	}
 
-	csvr := csv.NewReader(fp)
-
-	db := new(database)
-	db.file = file
-	db.rows = map[int64]row{}
-
-	rows, err := csvr.ReadAll()
+	// run table schema
+	_, err = conn.Exec(sqlSchema)
 	if err != nil {
-		panic(err)
+		conn.Close()
+		return nil, err
 	}
 
-	for _, cr := range rows {
-		id, err := strconv.ParseInt(cr[0], 10, 64)
-		if err != nil {
-			return nil, err
-		}
+	return &database{conn: conn}, nil
+}
 
-		if id > db.i {
-			db.i = id
-		}
+func (db *database) entry(ctx context.Context, id int64) (entry, error) {
+	var (
+		hash, source, cover, coverType string
+		e                              entry
+	)
 
-		r := row{
-			path: cr[1], cover: cr[2], coverType: cr[3],
-			title: cr[4], author: cr[5],
-			language: cr[6], summary: cr[7],
-			date: cr[8],
-		}
-
-		db.rows[id] = r
+	row := db.conn.QueryRowContext(ctx, "SELECT path, hash, cover, coverType, title, author, language, summary, date FROM books WHERE id = ?", id)
+	if err := row.Scan(&source, &hash, &cover, &coverType, &e.Title, &e.Author, &e.Language, &e.Language, &e.Summary, &e.Date); err != nil {
+		return e, err
 	}
 
-	if errors.Is(err, io.EOF) {
-		// There was nothing left to read
-		err = nil
+	e.Links = []link{
+		{
+			Rel:  "http://opds-spec.org/acquisition",
+			Href: root + "/books/" + source,
+			Type: "application/epub+zip",
+		},
 	}
 
-	return db, err
+	e.Content = content{Type: "text", Content: e.Summary}
+
+	// add cover if it exists
+	if len(cover) > 0 {
+		e.Links = append(e.Links, link{
+			Rel:  "http://opds-spec.org/image",
+			Href: root + "/covers/" + cover,
+			Type: coverType,
+		})
+	}
+
+	return e, nil
+}
+
+func (db *database) path(ctx context.Context, path string) (entry, error) {
+	var (
+		hash, source, cover, coverType string
+		e                              entry
+	)
+
+	row := db.conn.QueryRowContext(ctx, "SELECT path, hash, cover, coverType, title, author, language, summary, date FROM books WHERE path = ?", path)
+	if err := row.Scan(&source, &hash, &cover, &coverType, &e.Title, &e.Author, &e.Language, &e.Language, &e.Summary, &e.Date); err != nil {
+		return e, err
+	}
+
+	e.Links = []link{
+		{
+			Rel:  "http://opds-spec.org/acquisition",
+			Href: root + "/books/" + source,
+			Type: "application/epub+zip",
+		},
+	}
+
+	e.Content = content{Type: "text", Content: e.Summary}
+
+	// add cover if it exists
+	if len(cover) > 0 {
+		e.Links = append(e.Links, link{
+			Rel:  "http://opds-spec.org/image",
+			Href: root + "/covers/" + cover,
+			Type: coverType,
+		})
+	}
+
+	return e, nil
+}
+
+func (db *database) entries(ctx context.Context) ([]entry, error) {
+	rows, err := db.conn.QueryContext(ctx, "SELECT path, hash, cover, coverType, title, author, language, summary, date FROM books")
+	if err != nil {
+		return nil, err
+	}
+
+	entries := []entry{}
+
+	for rows.Next() {
+		var (
+			hash, source, cover, coverType string
+			e                              entry
+		)
+
+		if err := rows.Scan(&source, &hash, &cover, &coverType, &e.Title, &e.Author, &e.Language, &e.Language, &e.Summary, &e.Date); err != nil {
+			return entries, err
+		}
+
+		e.Links = []link{
+			{
+				Rel:  "http://opds-spec.org/acquisition",
+				Href: root + "/books/" + source,
+				Type: "application/epub+zip",
+			},
+		}
+
+		e.Content = content{Type: "text", Content: e.Summary}
+
+		// add cover if it exists
+		if len(cover) > 0 {
+			e.Links = append(e.Links, link{
+				Rel:  "http://opds-spec.org/image",
+				Href: root + "/covers/" + cover,
+				Type: coverType,
+			})
+		}
+
+		entries = append(entries, e)
+	}
+
+	return entries, nil
+}
+
+func (db *database) add(ctx context.Context, e entry, source, cover, coverType, hash string) error {
+	named := []interface{}{
+		sql.Named("path", source),
+		sql.Named("hash", hash),
+		sql.Named("cover", cover),
+		sql.Named("coverType", coverType),
+		sql.Named("title", e.Title),
+		sql.Named("author", e.Author.Name),
+		sql.Named("language", e.Language),
+		sql.Named("summary", e.Summary),
+		sql.Named("date", e.Date),
+	}
+
+	_, err := db.conn.ExecContext(ctx, `INSERT INTO books(path, hash, cover,
+	coverType, title, author, language, summary, date) VALUES (:path, :hash,
+	:cover, :coverType, :title, :author, :language, :summary, :date)`, named...)
+	return err
 }

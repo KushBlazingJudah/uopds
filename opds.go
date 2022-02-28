@@ -1,33 +1,8 @@
 package main
 
 import (
-	"encoding/xml"
-	"fmt"
 	"time"
-
-	"github.com/google/uuid"
 )
-
-type urn interface {
-	String() string
-	MarshalXML(e *xml.Encoder, start xml.StartElement) error
-}
-
-type uuidurn struct {
-	Value string
-}
-
-func (urn *uuidurn) String() string {
-	if urn.Value == "" {
-		urn.Value = uuid.New().String()
-	}
-
-	return fmt.Sprintf("urn:uuid:%s", urn.Value)
-}
-
-func (u uuidurn) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
-	return e.EncodeElement(u.String(), start)
-}
 
 type link struct {
 	Rel  string `xml:"rel,attr"`
@@ -37,7 +12,6 @@ type link struct {
 
 type author struct {
 	Name string `xml:"name"`
-	URI  urn    `xml:"uri,omitempty"`
 }
 
 type content struct {
@@ -49,7 +23,7 @@ type entry struct {
 	Title   string    `xml:"title"`
 	Author  author    `xml:"author,omitempty"`
 	Links   []link    `xml:"link"`
-	ID      urn       `xml:"id"`
+	ID      string    `xml:"id"`
 	Updated time.Time `xml:"updated"`
 
 	Summary  string `xml:"summary,omitempty"`
@@ -57,14 +31,10 @@ type entry struct {
 	Date     string `xml:"dc:date,omitempty"`
 
 	Content content `xml:"content,omitempty"`
-
-	sourceFile string `xml:"-"`
-	coverFile  string `xml:"-"`
-	coverType  string `xml:"-"`
 }
 
 type feed struct {
-	Id      urn       `xml:"id"`
+	Id      string    `xml:"id"`
 	Links   []link    `xml:"link"`
 	Title   string    `xml:"title"`
 	Updated time.Time `xml:"updated"`

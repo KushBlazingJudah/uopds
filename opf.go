@@ -9,7 +9,6 @@ import (
 	"mime"
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 )
 
@@ -49,8 +48,6 @@ type opfPackage struct {
 	Cover     []byte
 	CoverType string
 	File      string
-	Created   time.Time
-	Updated   time.Time
 }
 
 func (pkg opfPackage) genEntry() (entry, error) {
@@ -68,13 +65,10 @@ func (pkg opfPackage) genEntry() (entry, error) {
 				Type: "application/epub+zip",
 			},
 		},
-		ID:       &uuidurn{},
-		Updated:  pkg.Updated,
+		Updated:  time.Now(),
 		Summary:  pkg.Metadata.Description,
 		Date:     pkg.Metadata.Date,
 		Language: pkg.Metadata.Language,
-
-		sourceFile: pkg.File,
 	}
 
 	// hash cover with sha1
@@ -97,9 +91,6 @@ func (pkg opfPackage) genEntry() (entry, error) {
 		if err := os.WriteFile(coverDir+"/"+fname, pkg.Cover, 0o644); err != nil {
 			return e, err
 		}
-
-		e.coverFile = fname
-		e.coverType = pkg.CoverType
 
 		e.Links = append(e.Links, link{
 			Rel:  "http://opds-spec.org/image",
@@ -125,15 +116,7 @@ func readOpfFromEpub(file string) (opfPackage, error) {
 		return opfPackage{}, err
 	}
 
-	// TODO: change if windows gets explicit support
-	stat_t := stat.Sys().(*syscall.Stat_t)
-
-	pkg := opfPackage{
-		File: file,
-
-		Created: time.Unix(stat_t.Ctim.Sec, stat_t.Ctim.Nsec),
-		Updated: time.Unix(stat_t.Mtim.Sec, stat_t.Mtim.Nsec),
-	}
+	pkg := opfPackage{File: file}
 
 	zr, err := zip.NewReader(epub, stat.Size())
 	if err != nil {
