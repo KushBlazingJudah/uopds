@@ -5,10 +5,15 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"time"
 )
 
 const root = ""
+const staticDir = "static"
+const coverDir = staticDir + "/covers"
+const bookDir = staticDir + "/books"
 
 func main() {
 	testFeed := feed{
@@ -33,7 +38,7 @@ func main() {
 				}},
 				Updated: time.Now(),
 				ID:      &uuidurn{},
-				Content: content{Type: "text", Context: "wow"},
+				Content: content{Type: "text", Content: "wow"},
 			},
 			entry{
 				Title: "test entry",
@@ -44,7 +49,7 @@ func main() {
 				}},
 				Updated: time.Now(),
 				ID:      &uuidurn{},
-				Content: content{Type: "text", Context: "cool"},
+				Content: content{Type: "text", Content: "cool"},
 			},
 		},
 	}
@@ -86,13 +91,39 @@ func main() {
 				},
 				Updated: time.Now(),
 				ID:      &uuidurn{},
-				Content: content{Type: "text", Context: "this book is really cool"},
+				Content: content{Type: "text", Content: "this book is really cool"},
 				Author: author{
 					Name: "cool book writer",
 					URI:  &uuidurn{},
 				},
 			},
 		},
+	}
+
+	// generate entries in new catalog
+	dir, err := os.ReadDir(bookDir)
+	if err != nil {
+		panic(err)
+	}
+
+	for _, file := range dir {
+		if !file.Type().IsRegular() || filepath.Ext(file.Name()) != ".epub" {
+			// ignore it
+			continue
+		}
+
+		// generate an entry for it
+		opf, err := readOpfFromEpub(filepath.Join(bookDir, file.Name()))
+		if err != nil {
+			panic(err)
+		}
+
+		e, err := opf.genEntry()
+		if err != nil {
+			panic(err)
+		}
+
+		newFeed.Entries = append(newFeed.Entries, e)
 	}
 
 	http.HandleFunc(root+"/root.xml", func(w http.ResponseWriter, r *http.Request) {

@@ -36,13 +36,13 @@ type link struct {
 }
 
 type author struct {
-	Name string
-	URI  urn
+	Name string `xml:"name"`
+	URI  urn    `xml:"uri,omitempty"`
 }
 
 type content struct {
 	Type    string `xml:"type,attr"`
-	Context string `xml:",innerxml"`
+	Content string `xml:",innerxml"`
 }
 
 type entry struct {
@@ -52,9 +52,11 @@ type entry struct {
 	ID      urn       `xml:"id"`
 	Updated time.Time `xml:"updated"`
 
-	Summary string `xml:"summary,omitempty"`
+	Summary  string    `xml:"summary,omitempty"`
+	Language string    `xml:"dc:language,omitempty"`
+	Date     time.Time `xml:"dc:date,omitempty"`
 
-	Content content `xml:"content"`
+	Content content `xml:"content,omitempty"`
 }
 
 type feed struct {
@@ -62,7 +64,7 @@ type feed struct {
 	Links   []link    `xml:"link"`
 	Title   string    `xml:"title"`
 	Updated time.Time `xml:"updated"`
-	Author  author
+	Author  author    `xml:"author"`
 
 	Entries []entry `xml:"entry"`
 }
