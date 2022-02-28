@@ -4,7 +4,6 @@ import (
 	"archive/zip"
 	"crypto/sha1"
 	"encoding/hex"
-	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"mime"
@@ -13,6 +12,12 @@ import (
 	"syscall"
 	"time"
 )
+
+type metaInf struct {
+	Rootfile struct {
+		Path string `xml:"full-path,attr"`
+	} `xml:"rootfiles>rootfile"`
+}
 
 type opfIdentifier struct {
 	Scheme string `xml:"opf:scheme,attr"`
@@ -135,21 +140,16 @@ func readOpfFromEpub(file string) (opfPackage, error) {
 		return opfPackage{}, err
 	}
 
-	opf, err := zr.Open("content.opf")
-	if err != nil {
+	// read META-INF
+	var meta metaInf
+	if err := readXMLZip("META-INF/container.xml", zr, &meta); err != nil {
 		return opfPackage{}, err
 	}
 
-	data, err := ioutil.ReadAll(opf)
-	if err != nil {
-		return pkg, err
-	}
-
-	// We can close the opf file now because we read it
-	opf.Close()
-
-	if err = xml.Unmarshal(data, &pkg); err != nil {
-		return pkg, err
+	// try metadata.opf
+	var opf opfPackage
+	if err := readXMLZip(meta.Rootfile.Path, zr, &opf); err != nil {
+		return opf, err
 	}
 
 	// try to read cover
