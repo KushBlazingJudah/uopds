@@ -47,10 +47,14 @@ type content struct {
 
 type entry struct {
 	Title   string    `xml:"title"`
-	Link    link      `xml:"link"`
-	Updated time.Time `xml:"updated"`
+	Author  author    `xml:"author,omitempty"`
+	Links   []link    `xml:"link"`
 	ID      urn       `xml:"id"`
-	Content content   `xml:"content"`
+	Updated time.Time `xml:"updated"`
+
+	Summary string `xml:"summary,omitempty"`
+
+	Content content `xml:"content"`
 }
 
 type feed struct {
