@@ -12,15 +12,22 @@ import (
 )
 
 var (
-	root, coverDir, bookDir string
+	addr, root, coverDir, bookDir string
 )
 
 func main() {
+	flag.StringVar(&addr, "addr", ":8080", "listen address")
+
 	flag.StringVar(&root, "root", "", "root directory for the http server")
 	flag.StringVar(&coverDir, "covers", "covers", "directory for cover images")
 	flag.StringVar(&bookDir, "books", "books", "directory for books")
 
 	flag.Parse()
+
+	if root != "" && root[0] != '/' {
+		// Fixup root path
+		root = "/" + root
+	}
 
 	rootFeed := feed{
 		Id: &uuidurn{},
@@ -63,7 +70,7 @@ func main() {
 		rootFeed.Entries = append(rootFeed.Entries, e)
 	}
 
-	http.HandleFunc(root+"/", func(w http.ResponseWriter, r *http.Request) {
+	http.HandleFunc(root, func(w http.ResponseWriter, r *http.Request) {
 		out, err := xml.Marshal(rootFeed)
 		if err != nil {
 			w.WriteHeader(503)
@@ -77,5 +84,5 @@ func main() {
 	http.Handle(root+"/covers/", http.StripPrefix(root+"/covers/", http.FileServer(http.Dir(coverDir))))
 	http.Handle(root+"/books/", http.StripPrefix(root+"/books/", http.FileServer(http.Dir(bookDir))))
 
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	log.Fatal(http.ListenAndServe(addr, nil))
 }
