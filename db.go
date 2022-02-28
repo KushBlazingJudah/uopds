@@ -4,18 +4,17 @@ import (
 	"context"
 	"database/sql"
 	"sync"
+	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
-
-const timeFmt = "2006-01-02"
 
 const sqlSchema = `
 CREATE TABLE IF NOT EXISTS books(
 	id INTEGER NOT NULL PRIMARY KEY,
 
 	path TEXT NOT NULL,
-	hash BLOB NOT NULL,
+	urn TEXT NOT NULL,
 	cover TEXT,
 	coverType TEXT,
 
@@ -52,13 +51,16 @@ func openDatabase(path string) (*database, error) {
 }
 
 func (db *database) entry(ctx context.Context, id int64) (entry, error) {
+	db.mut.Lock()
+	defer db.mut.Unlock()
+
 	var (
-		hash, source, cover, coverType string
-		e                              entry
+		source, cover, coverType string
+		e                        entry
 	)
 
-	row := db.conn.QueryRowContext(ctx, "SELECT path, hash, cover, coverType, title, author, language, summary, date FROM books WHERE id = ?", id)
-	if err := row.Scan(&source, &hash, &cover, &coverType, &e.Title, &e.Author, &e.Language, &e.Language, &e.Summary, &e.Date); err != nil {
+	row := db.conn.QueryRowContext(ctx, "SELECT path, urn, cover, coverType, title, author, language, summary, date FROM books WHERE id = ?", id)
+	if err := row.Scan(&source, &e.ID, &cover, &coverType, &e.Title, &e.Author.Name, &e.Language, &e.Summary, &e.Date); err != nil {
 		return e, err
 	}
 
@@ -80,18 +82,24 @@ func (db *database) entry(ctx context.Context, id int64) (entry, error) {
 			Type: coverType,
 		})
 	}
+
+	// TODO: this is probably not the best thing to do, but i'm told i need it
+	e.Updated = time.Now()
 
 	return e, nil
 }
 
 func (db *database) path(ctx context.Context, path string) (entry, error) {
+	db.mut.Lock()
+	defer db.mut.Unlock()
+
 	var (
-		hash, source, cover, coverType string
-		e                              entry
+		source, cover, coverType string
+		e                        entry
 	)
 
-	row := db.conn.QueryRowContext(ctx, "SELECT path, hash, cover, coverType, title, author, language, summary, date FROM books WHERE path = ?", path)
-	if err := row.Scan(&source, &hash, &cover, &coverType, &e.Title, &e.Author, &e.Language, &e.Language, &e.Summary, &e.Date); err != nil {
+	row := db.conn.QueryRowContext(ctx, "SELECT path, urn, cover, coverType, title, author, language, summary, date FROM books WHERE path = ?", path)
+	if err := row.Scan(&source, &e.ID, &cover, &coverType, &e.Title, &e.Author.Name, &e.Language, &e.Summary, &e.Date); err != nil {
 		return e, err
 	}
 
@@ -114,11 +122,17 @@ func (db *database) path(ctx context.Context, path string) (entry, error) {
 		})
 	}
 
+	// TODO: this is probably not the best thing to do, but i'm told i need it
+	e.Updated = time.Now()
+
 	return e, nil
 }
 
 func (db *database) entries(ctx context.Context) ([]entry, error) {
-	rows, err := db.conn.QueryContext(ctx, "SELECT path, hash, cover, coverType, title, author, language, summary, date FROM books")
+	db.mut.Lock()
+	defer db.mut.Unlock()
+
+	rows, err := db.conn.QueryContext(ctx, "SELECT path, urn, cover, coverType, title, author, language, summary, date FROM books")
 	if err != nil {
 		return nil, err
 	}
@@ -127,11 +141,11 @@ func (db *database) entries(ctx context.Context) ([]entry, error) {
 
 	for rows.Next() {
 		var (
-			hash, source, cover, coverType string
-			e                              entry
+			source, cover, coverType string
+			e                        entry
 		)
 
-		if err := rows.Scan(&source, &hash, &cover, &coverType, &e.Title, &e.Author, &e.Language, &e.Language, &e.Summary, &e.Date); err != nil {
+		if err := rows.Scan(&source, &e.ID, &cover, &coverType, &e.Title, &e.Author.Name, &e.Language, &e.Summary, &e.Date); err != nil {
 			return entries, err
 		}
 
@@ -154,16 +168,22 @@ func (db *database) entries(ctx context.Context) ([]entry, error) {
 			})
 		}
 
+		// TODO: this is probably not the best thing to do, but i'm told i need it
+		e.Updated = time.Now()
+
 		entries = append(entries, e)
 	}
 
 	return entries, nil
 }
 
-func (db *database) add(ctx context.Context, e entry, source, cover, coverType, hash string) error {
+func (db *database) add(ctx context.Context, e entry, source, cover, coverType string) error {
+	db.mut.Lock()
+	defer db.mut.Unlock()
+
 	named := []interface{}{
 		sql.Named("path", source),
-		sql.Named("hash", hash),
+		sql.Named("urn", e.ID),
 		sql.Named("cover", cover),
 		sql.Named("coverType", coverType),
 		sql.Named("title", e.Title),
@@ -173,8 +193,8 @@ func (db *database) add(ctx context.Context, e entry, source, cover, coverType, 
 		sql.Named("date", e.Date),
 	}
 
-	_, err := db.conn.ExecContext(ctx, `INSERT INTO books(path, hash, cover,
-	coverType, title, author, language, summary, date) VALUES (:path, :hash,
+	_, err := db.conn.ExecContext(ctx, `INSERT INTO books(path, urn, cover,
+	coverType, title, author, language, summary, date) VALUES (:path, :urn,
 	:cover, :coverType, :title, :author, :language, :summary, :date)`, named...)
 	return err
 }

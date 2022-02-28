@@ -2,9 +2,12 @@ package main
 
 import (
 	"context"
+	"crypto/sha1"
+	"encoding/base32"
 	"encoding/xml"
 	"flag"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -85,13 +88,34 @@ func main() {
 			panic(err)
 		}
 
+		// generate urn
+		digest := sha1.New()
+
+		f, err := os.Open(filepath.Join(bookDir, file.Name()))
+		if err != nil {
+			panic(err)
+		}
+
+		if _, err := io.Copy(digest, f); err != nil {
+			panic(err)
+		}
+
+		f.Close()
+
+		hash := digest.Sum(nil)
+		enc := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(hash)
+		fmt.Println(enc)
+		entry.ID = fmt.Sprintf("urn:sha1:%s", enc)
+
 		// add it to the database
-		if err := db.add(context.Background(), entry, file.Name(), "", opf.CoverType, ""); err != nil {
+		if err := db.add(context.Background(), entry, file.Name(), "", opf.CoverType); err != nil {
 			panic(err)
 		}
 
 		entries = append(entries, entry)
 	}
+
+	rootFeed.Entries = entries
 
 	http.HandleFunc(root, func(w http.ResponseWriter, r *http.Request) {
 		out, err := xml.Marshal(rootFeed)
