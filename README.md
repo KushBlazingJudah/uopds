@@ -11,7 +11,7 @@ directory and making them available to download.
 As mentioned, this list is kept intentionally sparse.
 
 - generates an OPDS catalog for files in a directory
-- supports EPUBs and nothing else (yet)
+- supports EPUBs and CBZs
 - most likely doesn't implement the specs correctly
 
 ## Running

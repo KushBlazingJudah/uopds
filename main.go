@@ -2,12 +2,9 @@ package main
 
 import (
 	"context"
-	"crypto/sha1"
-	"encoding/base32"
 	"encoding/xml"
 	"flag"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"os"
@@ -17,20 +14,10 @@ import (
 
 var (
 	addr, root, coverDir, bookDir, dbPath string
+	db                                    *database
 )
 
-var rootFeed = feed{
-	Links: []link{
-		{Rel: "self", Href: root + "/", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
-		{Rel: "start", Href: root + "/", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
-	},
-	Title:   "uopds",
-	Updated: time.Now(),
-	Author: author{
-		Name: "uopds",
-	},
-	Entries: []entry{},
-}
+var rootFeed feed
 
 func main() {
 	flag.StringVar(&addr, "addr", ":8080", "listen address")
@@ -42,13 +29,27 @@ func main() {
 
 	flag.Parse()
 
-	if root == "" || root[0] != '/' {
+	if root != "" && root[0] != '/' {
 		// Fixup root path
 		root = "/" + root
 	}
 
+	rootFeed = feed{
+		Links: []link{
+			{Rel: "self", Href: root + "/", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
+			{Rel: "start", Href: root + "/", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
+		},
+		Title:   "uopds",
+		Updated: time.Now(),
+		Author: author{
+			Name: "uopds",
+		},
+		Entries: []entry{},
+	}
+
 	// read database
-	db, err := openDatabase(dbPath)
+	var err error
+	db, err = openDatabase(dbPath)
 	if err != nil {
 		panic(err)
 	}
@@ -65,7 +66,7 @@ func main() {
 	}
 
 	for _, file := range dir {
-		if !file.Type().IsRegular() || filepath.Ext(file.Name()) != ".epub" {
+		if !file.Type().IsRegular() {
 			// ignore it
 			continue
 		}
@@ -76,48 +77,37 @@ func main() {
 			continue
 		}
 
-		// generate an entry for it
-		opf, err := readOpfFromEpub(file.Name())
-		if err != nil {
-			log.Printf("failed to read %s: %v", file.Name(), err)
+		switch filepath.Ext(file.Name()) {
+		case ".cbz":
+			entry, err := importCbz(file.Name())
+			if err != nil {
+				log.Printf("failed to import %s: %v", file.Name(), err)
+				continue
+			}
+
+			entries = append(entries, entry)
+		case ".epub":
+			entry, err := importEpub(file.Name())
+			if err != nil {
+				log.Printf("failed to import %s: %v", file.Name(), err)
+				continue
+			}
+
+			entries = append(entries, entry)
+		default:
+			// unsupported
 			continue
 		}
-
-		entry, err := opf.genEntry()
-		if err != nil {
-			panic(err)
-		}
-
-		// generate urn
-		digest := sha1.New()
-
-		f, err := os.Open(filepath.Join(bookDir, file.Name()))
-		if err != nil {
-			panic(err)
-		}
-
-		if _, err := io.Copy(digest, f); err != nil {
-			panic(err)
-		}
-
-		f.Close()
-
-		hash := digest.Sum(nil)
-		enc := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(hash)
-		fmt.Println(enc)
-		entry.ID = fmt.Sprintf("urn:sha1:%s", enc)
-
-		// add it to the database
-		if err := db.add(context.Background(), entry, file.Name(), "", opf.CoverType); err != nil {
-			panic(err)
-		}
-
-		entries = append(entries, entry)
 	}
 
 	rootFeed.Entries = entries
 
-	http.HandleFunc(root, func(w http.ResponseWriter, r *http.Request) {
+	_loc := root
+	if _loc == "" {
+		_loc = "/"
+	}
+
+	http.HandleFunc(_loc, func(w http.ResponseWriter, r *http.Request) {
 		out, err := xml.Marshal(rootFeed)
 		if err != nil {
 			w.WriteHeader(503)
