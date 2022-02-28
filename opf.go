@@ -65,10 +65,11 @@ func (pkg opfPackage) genEntry() (entry, error) {
 		},
 		ID:       &uuidurn{},
 		Updated:  pkg.Updated,
-		Summary:  "a book",
+		Summary:  pkg.Metadata.Description,
 		Date:     pkg.Metadata.Date,
 		Language: pkg.Metadata.Language,
-		Content:  content{Type: "text", Content: pkg.Metadata.Description},
+
+		sourceFile: pkg.File,
 	}
 
 	// hash cover with sha1
@@ -91,6 +92,9 @@ func (pkg opfPackage) genEntry() (entry, error) {
 		if err := os.WriteFile(coverDir+"/"+fname, pkg.Cover, 0o644); err != nil {
 			return e, err
 		}
+
+		e.coverFile = fname
+		e.coverType = pkg.CoverType
 
 		e.Links = append(e.Links, link{
 			Rel:  "http://opds-spec.org/image",

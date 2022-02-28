@@ -12,11 +12,27 @@ import (
 )
 
 var (
-	addr, root, coverDir, bookDir string
+	addr, root, coverDir, bookDir, dbPath string
 )
+
+var rootFeed = feed{
+	Id: &uuidurn{},
+	Links: []link{
+		{Rel: "self", Href: root + "/", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
+		{Rel: "start", Href: root + "/", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
+	},
+	Title:   "uopds",
+	Updated: time.Now(),
+	Author: author{
+		Name: "uopds",
+		URI:  &uuidurn{},
+	},
+	Entries: []entry{},
+}
 
 func main() {
 	flag.StringVar(&addr, "addr", ":8080", "listen address")
+	flag.StringVar(&dbPath, "db", "./database", "database path")
 
 	flag.StringVar(&root, "root", "", "root directory for the http server")
 	flag.StringVar(&coverDir, "covers", "covers", "directory for cover images")
@@ -24,24 +40,15 @@ func main() {
 
 	flag.Parse()
 
-	if root != "" && root[0] != '/' {
+	if root == "" || root[0] != '/' {
 		// Fixup root path
 		root = "/" + root
 	}
 
-	rootFeed := feed{
-		Id: &uuidurn{},
-		Links: []link{
-			{Rel: "self", Href: root + "/", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
-			{Rel: "start", Href: root + "/", Type: "application/atom+xml;profile=opds-catalog;kind=navigation"},
-		},
-		Title:   "uopds",
-		Updated: time.Now(),
-		Author: author{
-			Name: "uopds",
-			URI:  &uuidurn{},
-		},
-		Entries: []entry{},
+	// read database
+	db, err := openDatabase(dbPath)
+	if err != nil {
+		panic(err)
 	}
 
 	// generate entries in new catalog
@@ -50,24 +57,54 @@ func main() {
 		panic(err)
 	}
 
+	dbChanged := false
+
 	for _, file := range dir {
 		if !file.Type().IsRegular() || filepath.Ext(file.Name()) != ".epub" {
 			// ignore it
 			continue
 		}
 
-		// generate an entry for it
-		opf, err := readOpfFromEpub(file.Name())
-		if err != nil {
-			panic(err)
+		// check if it's in the database
+		var entry entry
+		ok := false
+
+		for _, row := range db.rows {
+			if row.path == file.Name() {
+				// yes it is!
+				entry = row.entry()
+				ok = true
+			}
 		}
 
-		e, err := opf.genEntry()
-		if err != nil {
+		if !ok {
+			// generate an entry for it
+			opf, err := readOpfFromEpub(file.Name())
+			if err != nil {
+				log.Printf("failed to read %s: %v", file.Name(), err)
+				continue
+			}
+
+			entry, err = opf.genEntry()
+			if err != nil {
+				panic(err)
+			}
+
+			// add it to the database
+			dbChanged = true
+			db.add(entry)
+		}
+	}
+
+	if dbChanged {
+		if err := db.commit(); err != nil {
 			panic(err)
 		}
+	}
 
-		rootFeed.Entries = append(rootFeed.Entries, e)
+	// write to rootFeed
+	for _, row := range db.rows {
+		rootFeed.Entries = append(rootFeed.Entries, row.entry())
 	}
 
 	http.HandleFunc(root, func(w http.ResponseWriter, r *http.Request) {

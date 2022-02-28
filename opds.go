@@ -57,6 +57,10 @@ type entry struct {
 	Date     time.Time `xml:"dc:date,omitempty"`
 
 	Content content `xml:"content,omitempty"`
+
+	sourceFile string `xml:"-"`
+	coverFile  string `xml:"-"`
+	coverType  string `xml:"-"`
 }
 
 type feed struct {
