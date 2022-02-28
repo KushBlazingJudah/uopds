@@ -52,9 +52,9 @@ type entry struct {
 	ID      urn       `xml:"id"`
 	Updated time.Time `xml:"updated"`
 
-	Summary  string    `xml:"summary,omitempty"`
-	Language string    `xml:"dc:language,omitempty"`
-	Date     time.Time `xml:"dc:date,omitempty"`
+	Summary  string `xml:"summary,omitempty"`
+	Language string `xml:"dc:language,omitempty"`
+	Date     string `xml:"dc:date,omitempty"`
 
 	Content content `xml:"content,omitempty"`
 

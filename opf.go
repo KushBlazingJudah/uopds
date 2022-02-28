@@ -25,12 +25,12 @@ type opfIdentifier struct {
 }
 
 type opfMetadata struct {
-	Title       string    `xml:"title"`
-	Language    string    `xml:"language"`
-	Date        time.Time `xml:"date"`
-	Identifier  string    `xml:"identifier"`
-	Creator     string    `xml:"creator"`
-	Description string    `xml:"description"`
+	Title       string `xml:"title"`
+	Language    string `xml:"language"`
+	Date        string `xml:"date"`
+	Identifier  string `xml:"identifier"`
+	Creator     string `xml:"creator"`
+	Description string `xml:"description"`
 }
 
 type opfItem struct {

@@ -19,7 +19,7 @@ type row struct {
 
 	title, author, language, summary string
 
-	date time.Time
+	date string
 }
 
 type database struct {
@@ -99,7 +99,7 @@ func (db *database) commit() error {
 			fmt.Sprint(row.path), fmt.Sprint(row.cover), fmt.Sprint(row.coverType),
 			fmt.Sprint(row.title), fmt.Sprint(row.author),
 			fmt.Sprint(row.language), fmt.Sprint(row.summary),
-			row.date.Format(timeFmt),
+			timeFmt,
 		}
 
 		if err := csvw.Write(out); err != nil {
@@ -138,17 +138,11 @@ func openDatabase(file string) (*database, error) {
 			db.i = id
 		}
 
-		date, err := time.Parse(timeFmt, cr[len(cr)-1])
-		if err != nil {
-			fmt.Println(id, cr[len(cr)-1], err)
-			return nil, err
-		}
-
 		r := row{
 			path: cr[1], cover: cr[2], coverType: cr[3],
 			title: cr[4], author: cr[5],
 			language: cr[6], summary: cr[7],
-			date: date,
+			date: cr[8],
 		}
 
 		db.rows[id] = r
