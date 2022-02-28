@@ -137,19 +137,18 @@ func readOpfFromEpub(file string) (opfPackage, error) {
 
 	zr, err := zip.NewReader(epub, stat.Size())
 	if err != nil {
-		return opfPackage{}, err
+		return pkg, err
 	}
 
 	// read META-INF
 	var meta metaInf
 	if err := readXMLZip("META-INF/container.xml", zr, &meta); err != nil {
-		return opfPackage{}, err
+		return pkg, err
 	}
 
 	// try metadata.opf
-	var opf opfPackage
-	if err := readXMLZip(meta.Rootfile.Path, zr, &opf); err != nil {
-		return opf, err
+	if err := readXMLZip(meta.Rootfile.Path, zr, &pkg); err != nil {
+		return pkg, err
 	}
 
 	// try to read cover

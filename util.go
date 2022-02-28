@@ -3,7 +3,8 @@ package main
 import (
 	"archive/zip"
 	"encoding/xml"
-	"io/ioutil"
+
+	"golang.org/x/net/html/charset"
 )
 
 func readXMLZip(path string, zr *zip.Reader, v interface{}) error {
@@ -13,11 +14,9 @@ func readXMLZip(path string, zr *zip.Reader, v interface{}) error {
 	}
 	defer opf.Close()
 
-	data, err := ioutil.ReadAll(opf)
-	if err != nil {
-		return err
-	}
+	decoder := xml.NewDecoder(opf)
+	decoder.CharsetReader = charset.NewReaderLabel
 
-	err = xml.Unmarshal(data, v)
+	err = decoder.Decode(v)
 	return err
 }
