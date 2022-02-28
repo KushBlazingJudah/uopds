@@ -154,7 +154,13 @@ func readOpfFromEpub(file string) (opfPackage, error) {
 	// try to read cover
 	for _, i := range pkg.Manifest.Items {
 		if i.ID == "cover" {
-			cover, err := zr.Open(i.Href)
+			path := i.Href
+			if path[0] != '/' {
+				// Path is relative to the opf file
+				path = filepath.Join(filepath.Dir(meta.Rootfile.Path), i.Href)
+			}
+
+			cover, err := zr.Open(path)
 			if err != nil {
 				return pkg, err
 			}
