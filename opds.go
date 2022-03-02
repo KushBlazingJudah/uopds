@@ -4,6 +4,10 @@ import (
 	"time"
 )
 
+const (
+	opdsAcquisition = "application/atom+xml;profile=opds-catalog;kind=acquisition"
+)
+
 type link struct {
 	Rel  string `xml:"rel,attr"`
 	Href string `xml:"href,attr"`

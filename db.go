@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"net/url"
 	"path/filepath"
 	"sync"
 	"time"
@@ -69,7 +68,7 @@ func (db *database) entry(ctx context.Context, id int64) (entry, error) {
 	e.Links = []link{
 		{
 			Rel:  "http://opds-spec.org/acquisition",
-			Href: root + "/books/" + url.PathEscape(source),
+			Href: root + "/books/" + source,
 			Type: "application/epub+zip",
 		},
 	}
@@ -80,7 +79,7 @@ func (db *database) entry(ctx context.Context, id int64) (entry, error) {
 	if len(cover) > 0 {
 		e.Links = append(e.Links, link{
 			Rel:  "http://opds-spec.org/image",
-			Href: root + "/covers/" + url.PathEscape(cover),
+			Href: root + "/covers/" + cover,
 			Type: coverType,
 		})
 	}
@@ -108,7 +107,7 @@ func (db *database) path(ctx context.Context, path string) (entry, error) {
 	e.Links = []link{
 		{
 			Rel:  "http://opds-spec.org/acquisition",
-			Href: root + "/books/" + url.PathEscape(source),
+			Href: root + "/books/" + source,
 			Type: "application/epub+zip",
 		},
 	}
@@ -119,7 +118,7 @@ func (db *database) path(ctx context.Context, path string) (entry, error) {
 	if len(cover) > 0 {
 		e.Links = append(e.Links, link{
 			Rel:  "http://opds-spec.org/image",
-			Href: root + "/covers/" + url.PathEscape(cover),
+			Href: root + "/covers/" + cover,
 			Type: coverType,
 		})
 	}
@@ -163,7 +162,7 @@ func (db *database) entries(ctx context.Context) ([]entry, error) {
 		e.Links = []link{
 			{
 				Rel:  "http://opds-spec.org/acquisition",
-				Href: root + "/books/" + url.PathEscape(source),
+				Href: root + "/books/" + source,
 				Type: ftype,
 			},
 		}
@@ -174,7 +173,7 @@ func (db *database) entries(ctx context.Context) ([]entry, error) {
 		if len(cover) > 0 {
 			e.Links = append(e.Links, link{
 				Rel:  "http://opds-spec.org/image",
-				Href: root + "/covers/" + url.PathEscape(cover),
+				Href: root + "/covers/" + cover,
 				Type: coverType,
 			})
 		}
