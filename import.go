@@ -59,7 +59,7 @@ func importCbz(path string) (entry, error) {
 	//
 	// Most fields in the OPDS feed will be left blank.
 
-	title := strings.TrimSuffix(path, ".cbz")
+	title := strings.TrimSuffix(filepath.Base(path), ".cbz")
 	entry := entry{
 		Title:  title,
 		Author: author{Name: "Unknown author"},
