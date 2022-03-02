@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"database/sql"
-	"path/filepath"
 	"sync"
 	"time"
 
@@ -16,8 +15,6 @@ CREATE TABLE IF NOT EXISTS books(
 
 	path TEXT NOT NULL,
 	urn TEXT NOT NULL,
-	cover TEXT,
-	coverType TEXT,
 
 	title TEXT,
 	author TEXT,
@@ -51,56 +48,17 @@ func openDatabase(path string) (*database, error) {
 	return &database{conn: conn}, nil
 }
 
-func (db *database) entry(ctx context.Context, id int64) (entry, error) {
-	db.mut.Lock()
-	defer db.mut.Unlock()
-
-	var (
-		source, cover, coverType string
-		e                        entry
-	)
-
-	row := db.conn.QueryRowContext(ctx, "SELECT path, urn, cover, coverType, title, author, language, summary, date FROM books WHERE id = ?", id)
-	if err := row.Scan(&source, &e.ID, &cover, &coverType, &e.Title, &e.Author.Name, &e.Language, &e.Summary, &e.Date); err != nil {
-		return e, err
-	}
-
-	e.Links = []link{
-		{
-			Rel:  "http://opds-spec.org/acquisition",
-			Href: root + "/books/" + source,
-			Type: "application/epub+zip",
-		},
-	}
-
-	e.Content = content{Type: "text", Content: e.Summary}
-
-	// add cover if it exists
-	if len(cover) > 0 {
-		e.Links = append(e.Links, link{
-			Rel:  "http://opds-spec.org/image",
-			Href: root + "/covers/" + cover,
-			Type: coverType,
-		})
-	}
-
-	// TODO: this is probably not the best thing to do, but i'm told i need it
-	e.Updated = time.Now()
-
-	return e, nil
-}
-
 func (db *database) path(ctx context.Context, path string) (entry, error) {
 	db.mut.Lock()
 	defer db.mut.Unlock()
 
 	var (
-		source, cover, coverType string
-		e                        entry
+		source string
+		e      entry
 	)
 
-	row := db.conn.QueryRowContext(ctx, "SELECT path, urn, cover, coverType, title, author, language, summary, date FROM books WHERE path = ?", path)
-	if err := row.Scan(&source, &e.ID, &cover, &coverType, &e.Title, &e.Author.Name, &e.Language, &e.Summary, &e.Date); err != nil {
+	row := db.conn.QueryRowContext(ctx, "SELECT path, urn, title, author, language, summary, date FROM books WHERE path = ?", path)
+	if err := row.Scan(&source, &e.ID, &e.Title, &e.Author.Name, &e.Language, &e.Summary, &e.Date); err != nil {
 		return e, err
 	}
 
@@ -114,88 +72,19 @@ func (db *database) path(ctx context.Context, path string) (entry, error) {
 
 	e.Content = content{Type: "text", Content: e.Summary}
 
-	// add cover if it exists
-	if len(cover) > 0 {
-		e.Links = append(e.Links, link{
-			Rel:  "http://opds-spec.org/image",
-			Href: root + "/covers/" + cover,
-			Type: coverType,
-		})
-	}
-
 	// TODO: this is probably not the best thing to do, but i'm told i need it
 	e.Updated = time.Now()
 
 	return e, nil
 }
 
-func (db *database) entries(ctx context.Context) ([]entry, error) {
-	db.mut.Lock()
-	defer db.mut.Unlock()
-
-	rows, err := db.conn.QueryContext(ctx, "SELECT path, urn, cover, coverType, title, author, language, summary, date FROM books")
-	if err != nil {
-		return nil, err
-	}
-
-	entries := []entry{}
-
-	for rows.Next() {
-		var (
-			source, cover, coverType string
-			e                        entry
-		)
-
-		if err := rows.Scan(&source, &e.ID, &cover, &coverType, &e.Title, &e.Author.Name, &e.Language, &e.Summary, &e.Date); err != nil {
-			return entries, err
-		}
-
-		ftype := ""
-
-		switch filepath.Ext(source) {
-		case ".epub":
-			ftype = "application/epub+zip"
-		case ".cbz":
-			ftype = "application/x-cbz"
-		}
-
-		e.Links = []link{
-			{
-				Rel:  "http://opds-spec.org/acquisition",
-				Href: root + "/books/" + source,
-				Type: ftype,
-			},
-		}
-
-		e.Content = content{Type: "text", Content: e.Summary}
-
-		// add cover if it exists
-		if len(cover) > 0 {
-			e.Links = append(e.Links, link{
-				Rel:  "http://opds-spec.org/image",
-				Href: root + "/covers/" + cover,
-				Type: coverType,
-			})
-		}
-
-		// TODO: this is probably not the best thing to do, but i'm told i need it
-		e.Updated = time.Now()
-
-		entries = append(entries, e)
-	}
-
-	return entries, nil
-}
-
-func (db *database) add(ctx context.Context, e entry, source, cover, coverType string) error {
+func (db *database) add(ctx context.Context, e entry, source string) error {
 	db.mut.Lock()
 	defer db.mut.Unlock()
 
 	named := []interface{}{
 		sql.Named("path", source),
 		sql.Named("urn", e.ID),
-		sql.Named("cover", cover),
-		sql.Named("coverType", coverType),
 		sql.Named("title", e.Title),
 		sql.Named("author", e.Author.Name),
 		sql.Named("language", e.Language),
@@ -203,8 +92,8 @@ func (db *database) add(ctx context.Context, e entry, source, cover, coverType s
 		sql.Named("date", e.Date),
 	}
 
-	_, err := db.conn.ExecContext(ctx, `INSERT INTO books(path, urn, cover,
-	coverType, title, author, language, summary, date) VALUES (:path, :urn,
-	:cover, :coverType, :title, :author, :language, :summary, :date)`, named...)
+	_, err := db.conn.ExecContext(ctx, `INSERT INTO books(path, urn title,
+author, language, summary, date) VALUES (:path, :urn, :title, :author,
+:language, :summary, :date)`, named...)
 	return err
 }

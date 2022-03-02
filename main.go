@@ -13,8 +13,8 @@ import (
 )
 
 var (
-	addr, root, coverDir, bookDir, dbPath string
-	db                                    *database
+	addr, root, bookDir, dbPath string
+	db                          *database
 )
 
 func genFeed(rpath string) (feed, error) {
@@ -106,7 +106,6 @@ func main() {
 	flag.StringVar(&dbPath, "db", "./database", "database path")
 
 	flag.StringVar(&root, "root", "", "root directory for the http server")
-	flag.StringVar(&coverDir, "covers", "covers", "directory for cover images")
 	flag.StringVar(&bookDir, "books", "books", "directory for books")
 
 	flag.Parse()
@@ -121,52 +120,6 @@ func main() {
 	db, err = openDatabase(dbPath)
 	if err != nil {
 		panic(err)
-	}
-
-	entries, err := db.entries(context.Background())
-	if err != nil {
-		panic(err)
-	}
-
-	// generate entries in new catalog
-	dir, err := os.ReadDir(bookDir)
-	if err != nil {
-		panic(err)
-	}
-
-	for _, file := range dir {
-		if !file.Type().IsRegular() {
-			// ignore it
-			continue
-		}
-
-		// check if it's in the database
-		if _, err := db.path(context.Background(), file.Name()); err == nil {
-			// it exists in the database
-			continue
-		}
-
-		switch filepath.Ext(file.Name()) {
-		case ".cbz":
-			entry, err := importCbz(file.Name())
-			if err != nil {
-				log.Printf("failed to import %s: %v", file.Name(), err)
-				continue
-			}
-
-			entries = append(entries, entry)
-		case ".epub":
-			entry, err := importEpub(file.Name())
-			if err != nil {
-				log.Printf("failed to import %s: %v", file.Name(), err)
-				continue
-			}
-
-			entries = append(entries, entry)
-		default:
-			// unsupported
-			continue
-		}
 	}
 
 	_loc := root
@@ -192,7 +145,6 @@ func main() {
 		w.Write(out)
 	})
 
-	http.Handle(root+"/covers/", http.StripPrefix(root+"/covers/", http.FileServer(http.Dir(coverDir))))
 	http.Handle(root+"/books/", http.StripPrefix(root+"/books/", http.FileServer(http.Dir(bookDir))))
 
 	log.Fatal(http.ListenAndServe(addr, nil))

@@ -2,11 +2,6 @@ package main
 
 import (
 	"archive/zip"
-	"crypto/sha1"
-	"encoding/hex"
-	"fmt"
-	"io/ioutil"
-	"mime"
 	"os"
 	"path/filepath"
 	"time"
@@ -24,12 +19,12 @@ type opfIdentifier struct {
 }
 
 type opfMetadata struct {
-	Title       string `xml:"title"`
-	Language    string `xml:"language"`
-	Date        string `xml:"date"`
-	Identifier  string `xml:"identifier"`
-	Creator     string `xml:"creator"`
-	Description string `xml:"description"`
+	Title       string        `xml:"title"`
+	Language    string        `xml:"language"`
+	Date        string        `xml:"date"`
+	Identifier  opfIdentifier `xml:"identifier"`
+	Creator     string        `xml:"creator"`
+	Description string        `xml:"description"`
 }
 
 type opfItem struct {
@@ -71,34 +66,6 @@ func (pkg opfPackage) genEntry() (entry, error) {
 		Language: pkg.Metadata.Language,
 	}
 
-	// hash cover with sha1
-	if len(pkg.Cover) > 0 {
-		_tmp := sha1.Sum(pkg.Cover)
-		hash := hex.EncodeToString(_tmp[:])
-
-		exts, err := mime.ExtensionsByType(pkg.CoverType)
-		if err != nil {
-			return e, err
-		}
-
-		if len(exts) == 0 {
-			exts = []string{""}
-		}
-
-		fname := fmt.Sprintf("%s%s", hash, exts[0])
-
-		// write out
-		if err := os.WriteFile(coverDir+"/"+fname, pkg.Cover, 0o644); err != nil {
-			return e, err
-		}
-
-		e.Links = append(e.Links, link{
-			Rel:  "http://opds-spec.org/image",
-			Href: root + "/covers/" + fname,
-			Type: pkg.CoverType,
-		})
-	}
-
 	// make entry!
 	return e, nil
 }
@@ -129,34 +96,9 @@ func readOpfFromEpub(file string) (opfPackage, error) {
 		return pkg, err
 	}
 
-	// try metadata.opf
+	// try to read metadata
 	if err := readXMLZip(meta.Rootfile.Path, zr, &pkg); err != nil {
 		return pkg, err
-	}
-
-	// try to read cover
-	for _, i := range pkg.Manifest.Items {
-		if i.ID == "cover" {
-			path := i.Href
-			if path[0] != '/' {
-				// Path is relative to the opf file
-				path = filepath.Join(filepath.Dir(meta.Rootfile.Path), i.Href)
-			}
-
-			cover, err := zr.Open(path)
-			if err != nil {
-				return pkg, err
-			}
-			defer cover.Close()
-
-			if pkg.Cover, err = ioutil.ReadAll(cover); err != nil {
-				return pkg, err
-			}
-
-			pkg.CoverType = i.Type
-
-			break
-		}
 	}
 
 	return pkg, nil

@@ -1,12 +1,9 @@
 package main
 
 import (
-	"archive/zip"
-	"bytes"
 	"context"
 	"crypto/sha1"
 	"encoding/base32"
-	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -47,7 +44,7 @@ func importEpub(path string) (entry, error) {
 	entry.ID = fmt.Sprintf("urn:sha1:%s", enc)
 
 	// add it to the database
-	err = db.add(context.Background(), entry, path, "", opf.CoverType)
+	err = db.add(context.Background(), entry, path)
 	return entry, err
 }
 
@@ -81,65 +78,12 @@ func importCbz(path string) (entry, error) {
 	}
 	defer fp.Close()
 
-	stat, err := fp.Stat()
-	if err != nil {
-		return entry, err
-	}
-
-	zr, err := zip.NewReader(fp, stat.Size())
-	if err != nil {
-		return entry, err
-	}
-
-	// Fetch the *first* image.
-	if len(zr.File) == 0 {
-		// Empty???
-		return entry, fmt.Errorf("cbz is empty")
-	}
-
-	first := zr.File[0]
-	firstfp, err := first.Open()
-	if err != nil {
-		return entry, err
-	}
-	defer firstfp.Close()
-
-	// Hash it
-	digest := sha1.New()
-	buf := &bytes.Buffer{}
-	tee := io.TeeReader(firstfp, buf)
-	if _, err := io.Copy(digest, tee); err != nil {
-		return entry, err
-	}
-
-	// TODO: It is dangerous to assume it's a jpeg.
-	fname := hex.EncodeToString(digest.Sum(nil)) + ".jpg"
-
-	// Can't seek, gotta close and reopen it...
-	firstfp.Close()
-	firstfp, err = first.Open()
-	if err != nil {
-		return entry, err
-	}
-
-	// Write it out!
-	if err := os.WriteFile(coverDir+"/"+fname, buf.Bytes(), 0o644); err != nil {
-		return entry, err
-	}
-
 	// generate urn
-	digest = sha1.New()
+	digest := sha1.New()
 
-	f, err := os.Open(filepath.Join(bookDir, path))
-	if err != nil {
+	if _, err := io.Copy(digest, fp); err != nil {
 		panic(err)
 	}
-
-	if _, err := io.Copy(digest, f); err != nil {
-		panic(err)
-	}
-
-	f.Close()
 
 	hash := digest.Sum(nil)
 	enc := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(hash)
@@ -147,6 +91,6 @@ func importCbz(path string) (entry, error) {
 	entry.ID = fmt.Sprintf("urn:sha1:%s", enc)
 
 	// add it to the database
-	err = db.add(context.Background(), entry, path, fname, "image/jpeg")
+	err = db.add(context.Background(), entry, path)
 	return entry, err
 }
