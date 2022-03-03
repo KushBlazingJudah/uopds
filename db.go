@@ -1,10 +1,8 @@
 package main
 
 import (
-	"context"
 	"database/sql"
 	"path/filepath"
-	"sync"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -30,7 +28,6 @@ CREATE TABLE IF NOT EXISTS books(
 
 type database struct {
 	conn *sql.DB
-	mut  sync.Mutex
 }
 
 func openDatabase(path string) (*database, error) {
@@ -49,16 +46,13 @@ func openDatabase(path string) (*database, error) {
 	return &database{conn: conn}, nil
 }
 
-func (db *database) path(ctx context.Context, path string) (entry, error) {
-	db.mut.Lock()
-	defer db.mut.Unlock()
-
+func (db *database) path(path string) (entry, error) {
 	var (
 		source string
 		e      entry
 	)
 
-	row := db.conn.QueryRowContext(ctx, "SELECT path, urn, title, author, language, summary, date FROM books WHERE path = ?", path)
+	row := db.conn.QueryRow("SELECT path, urn, title, author, language, summary, date FROM books WHERE path = ?", path)
 	if err := row.Scan(&source, &e.ID, &e.Title, &e.Author.Name, &e.Language, &e.Summary, &e.Date); err != nil {
 		return e, err
 	}
@@ -82,10 +76,7 @@ func (db *database) path(ctx context.Context, path string) (entry, error) {
 	return e, nil
 }
 
-func (db *database) add(ctx context.Context, e entry, source string) error {
-	db.mut.Lock()
-	defer db.mut.Unlock()
-
+func (db *database) add(e entry, source string) error {
 	named := []interface{}{
 		sql.Named("path", source),
 		sql.Named("urn", e.ID),
@@ -96,7 +87,7 @@ func (db *database) add(ctx context.Context, e entry, source string) error {
 		sql.Named("date", e.Date),
 	}
 
-	_, err := db.conn.ExecContext(ctx, `INSERT INTO books(path, urn, title,
+	_, err := db.conn.Exec(`INSERT INTO books(path, urn, title,
 author, language, summary, date) VALUES (:path, :urn, :title, :author,
 :language, :summary, :date)`, named...)
 	return err

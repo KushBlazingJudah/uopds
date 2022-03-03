@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"encoding/xml"
 	"flag"
 	"fmt"
@@ -45,19 +44,16 @@ func (opds) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		out, err := xml.Marshal(f)
+		out := xml.NewEncoder(w)
+		out.Encode(f)
 		if err != nil {
-			w.WriteHeader(503)
-			fmt.Fprint(w, err)
+			log.Printf("error marshalling feed for %s: %v", path, err)
 			return
 		}
-
-		w.Write(out)
-		return
+	} else {
+		// It is a file, serve it
+		http.ServeFile(w, r, lpath)
 	}
-
-	// It is a file, serve it
-	http.ServeFile(w, r, lpath)
 }
 
 func genFeed(rpath string) (feed, error) {
@@ -121,7 +117,7 @@ func genFeed(rpath string) (feed, error) {
 		ext := filepath.Ext(file)
 
 		// check if it's in the database
-		if e, err = db.path(context.Background(), relPath); err != nil {
+		if e, err = db.path(relPath); err != nil {
 			// it is not in the database, new file!
 			// index it, and add it to the database.
 			fn, ok := importers[ext]
@@ -165,6 +161,8 @@ func main() {
 		panic(err)
 	}
 
+	smux := &http.ServeMux{}
+
 	_loc := root
 	if _loc == "" {
 		_loc = "/"
@@ -176,10 +174,17 @@ func main() {
 		}
 
 		// Setup a redirect and fix root
-		http.Handle("/", http.RedirectHandler(_loc, http.StatusMovedPermanently))
+		smux.Handle("/", http.RedirectHandler(_loc, http.StatusMovedPermanently))
 	}
 
-	http.Handle(_loc, http.StripPrefix(_loc, opds{}))
+	smux.Handle(_loc, http.StripPrefix(_loc, opds{}))
 
-	log.Fatal(http.ListenAndServe(addr, nil))
+	srv := &http.Server{
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 10 * time.Second,
+		Handler:      smux,
+		Addr:         addr,
+	}
+
+	log.Fatal(srv.ListenAndServe())
 }

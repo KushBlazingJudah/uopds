@@ -1,7 +1,6 @@
 package main
 
 import (
-	"context"
 	"crypto/sha1"
 	"encoding/base32"
 	"fmt"
@@ -76,7 +75,7 @@ func importEpub(path string) (entry, error) {
 	entry.ID = fmt.Sprintf("urn:sha1:%s", urn)
 
 	// add it to the database
-	err = db.add(context.Background(), entry, path)
+	err = db.add(entry, path)
 	return entry, err
 }
 
@@ -116,6 +115,6 @@ func importGeneric(path string) (entry, error) {
 	entry.ID = fmt.Sprintf("urn:sha1:%s", urn)
 
 	// add it to the database
-	err = db.add(context.Background(), entry, path)
+	err = db.add(entry, path)
 	return entry, err
 }
