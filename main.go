@@ -87,8 +87,9 @@ func genFeed(rpath string) (feed, error) {
 	// Base feed
 	f := feed{
 		Links: []link{
-			{Rel: "self", Href: filepath.Join(root, "/", rpath), Type: opdsAcquisition},
-			{Rel: "start", Href: filepath.Join(root, "/"), Type: opdsAcquisition},
+			// Ensure the trailing slash to prevent redirects
+			{Rel: "self", Href: filepath.Join(root, rpath) + "/", Type: opdsAcquisition},
+			{Rel: "start", Href: filepath.Join(root) + "/", Type: opdsAcquisition},
 		},
 		Title:   rpath,
 		Updated: time.Now(),
@@ -188,8 +189,14 @@ func main() {
 	if _loc == "" {
 		_loc = "/"
 	} else {
-		// Setup a redirect
-		http.Handle("/", http.RedirectHandler(root, http.StatusMovedPermanently))
+		if _loc[len(_loc)-1] != '/' {
+			// If we don't include the trailing slash, StripPrefix will act in unexpected ways.
+			// This has the side effect of making "http://server/root" redirect to "http://server/root/".
+			_loc += "/"
+		}
+
+		// Setup a redirect and fix root
+		http.Handle("/", http.RedirectHandler(_loc, http.StatusMovedPermanently))
 	}
 
 	http.Handle(_loc, http.StripPrefix(_loc, opds{}))

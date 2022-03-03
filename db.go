@@ -65,8 +65,13 @@ func (db *database) path(ctx context.Context, path string) (entry, error) {
 
 	e.Links = []link{
 		{
-			Rel:  "http://opds-spec.org/acquisition",
-			Href: filepath.Join(root, "books", source),
+			Rel: "http://opds-spec.org/acquisition",
+
+			// We don't ever perform anything with the entry that is returned
+			// by this function so add on the root path to the source.
+			// It makes life mildly easier.
+			Href: filepath.Join(root, source),
+
 			Type: "application/epub+zip",
 		},
 	}
