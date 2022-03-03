@@ -25,8 +25,8 @@ func genFeed(rpath string) (feed, error) {
 	// Base feed
 	f := feed{
 		Links: []link{
-			{Rel: "self", Href: root + "/" + rpath, Type: opdsAcquisition},
-			{Rel: "start", Href: root + "/", Type: opdsAcquisition},
+			{Rel: "self", Href: filepath.Join(root, "/", rpath), Type: opdsAcquisition},
+			{Rel: "start", Href: filepath.Join(root, "/"), Type: opdsAcquisition},
 		},
 		Title:   rpath,
 		Updated: time.Now(),
@@ -38,7 +38,7 @@ func genFeed(rpath string) (feed, error) {
 
 	// Don't add an "up" entry if this is the root folder
 	if up := filepath.Dir(rpath); up != "." {
-		f.Links = append(f.Links, link{Rel: "up", Href: root + "/" + up, Type: opdsAcquisition})
+		f.Links = append(f.Links, link{Rel: "up", Href: filepath.Join(root, up), Type: opdsAcquisition})
 	}
 
 	// Generate entries from folder

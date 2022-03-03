@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"database/sql"
+	"path/filepath"
 	"sync"
 	"time"
 
@@ -65,7 +66,7 @@ func (db *database) path(ctx context.Context, path string) (entry, error) {
 	e.Links = []link{
 		{
 			Rel:  "http://opds-spec.org/acquisition",
-			Href: root + "/books/" + source,
+			Href: filepath.Join(root, "books", source),
 			Type: "application/epub+zip",
 		},
 	}
