@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/xml"
 	"time"
 )
 
@@ -18,31 +19,29 @@ type author struct {
 	Name string `xml:"name"`
 }
 
-type content struct {
-	Type    string `xml:"type,attr"`
-	Content string `xml:",innerxml"`
+type summary string
+
+func (s summary) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	start.Attr = append(start.Attr, xml.Attr{Name: xml.Name{Local: "type"}, Value: "text"})
+	e.EncodeElement(string(s), start)
+	return nil
 }
 
 type entry struct {
-	Title   string    `xml:"title"`
-	Author  author    `xml:"author,omitempty"`
+	Title   string    `xml:"title"`            // necessary
+	Author  author    `xml:"author,omitempty"` // optional, but should
 	Links   []link    `xml:"link"`
-	ID      string    `xml:"id"`
-	Updated time.Time `xml:"updated"`
+	ID      string    `xml:"id"`      // necessary, should be unique
+	Updated time.Time `xml:"updated"` // necessary
 
-	Summary  string `xml:"summary,omitempty"`
-	Language string `xml:"dc:language,omitempty"`
-	Date     string `xml:"dc:date,omitempty"`
+	Language string `xml:"dc:language,omitempty"` // optional
+	Date     string `xml:"dc:date,omitempty"`     // optional
 
-	Content content `xml:"content,omitempty"`
+	Summary summary `xml:"content,omitempty"` // optional
 }
 
 type feed struct {
-	Id      string    `xml:"id"`
-	Links   []link    `xml:"link"`
-	Title   string    `xml:"title"`
-	Updated time.Time `xml:"updated"`
-	Author  author    `xml:"author"`
+	entry
 
 	Entries []entry `xml:"entry"`
 }

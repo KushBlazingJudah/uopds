@@ -2,9 +2,12 @@ package main
 
 import (
 	"archive/zip"
+	"encoding/xml"
 	"os"
 	"path/filepath"
 	"time"
+
+	"golang.org/x/net/html/charset"
 )
 
 type metaInf struct {
@@ -13,36 +16,27 @@ type metaInf struct {
 	} `xml:"rootfiles>rootfile"`
 }
 
-type opfIdentifier struct {
-	Scheme string `xml:"opf:scheme,attr"`
-	Value  string `xml:",innerxml"`
-}
-
-type opfMetadata struct {
-	Title       string        `xml:"title"`
-	Language    string        `xml:"language"`
-	Date        string        `xml:"date"`
-	Identifier  opfIdentifier `xml:"identifier"`
-	Creator     string        `xml:"creator"`
-	Description string        `xml:"description"`
-}
-
-type opfItem struct {
-	Href string `xml:"href,attr"`
-	ID   string `xml:"id,attr"`
-	Type string `xml:"media-type,attr"`
-}
-
-type opfManifest struct {
-	Items []opfItem `xml:"item"`
-}
-
 type opfPackage struct {
-	Metadata  opfMetadata `xml:"metadata"`
-	Manifest  opfManifest `xml:"manifest"`
-	Cover     []byte
-	CoverType string
-	File      string
+	Title       string `xml:"metadata>title"`
+	Date        string `xml:"metadata>date"`
+	Creator     string `xml:"metadata>creator"`
+	Description string `xml:"metadata>description"`
+	file        string
+}
+
+func readXMLZip(path string, zr *zip.Reader, v interface{}) error {
+	opf, err := zr.Open(path)
+	if err != nil {
+		return err
+	}
+	defer opf.Close()
+
+	decoder := xml.NewDecoder(opf)
+
+	// Ensure files in the incorrect format (i.e. not UTF-8) still get read
+	decoder.CharsetReader = charset.NewReaderLabel
+
+	return decoder.Decode(v)
 }
 
 func (pkg opfPackage) genEntry() (entry, error) {
@@ -51,19 +45,18 @@ func (pkg opfPackage) genEntry() (entry, error) {
 	} */
 
 	e := entry{
-		Title:  pkg.Metadata.Title,
-		Author: author{Name: pkg.Metadata.Creator},
+		Title:  pkg.Title,
+		Author: author{Name: pkg.Creator},
 		Links: []link{
 			{
 				Rel:  "http://opds-spec.org/acquisition",
-				Href: root + "/books/" + pkg.File,
+				Href: filepath.Join(root, pkg.file),
 				Type: "application/epub+zip",
 			},
 		},
-		Updated:  time.Now(),
-		Summary:  pkg.Metadata.Description,
-		Date:     pkg.Metadata.Date,
-		Language: pkg.Metadata.Language,
+		Updated: time.Now(),
+		Summary: summary(pkg.Description),
+		Date:    pkg.Date,
 	}
 
 	// make entry!
@@ -83,7 +76,7 @@ func readOpfFromEpub(file string) (opfPackage, error) {
 		return opfPackage{}, err
 	}
 
-	pkg := opfPackage{File: file}
+	pkg := opfPackage{file: file}
 
 	zr, err := zip.NewReader(epub, stat.Size())
 	if err != nil {

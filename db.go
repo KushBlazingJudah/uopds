@@ -76,8 +76,6 @@ func (db *database) path(ctx context.Context, path string) (entry, error) {
 		},
 	}
 
-	e.Content = content{Type: "text", Content: e.Summary}
-
 	// TODO: this is probably not the best thing to do, but i'm told i need it
 	e.Updated = time.Now()
 

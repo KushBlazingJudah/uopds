@@ -85,19 +85,17 @@ func genFeed(rpath string) (feed, error) {
 	lpath := filepath.Join(bookDir, rpath)
 
 	// Base feed
-	f := feed{
-		Links: []link{
-			// Ensure the trailing slash to prevent redirects
-			{Rel: "self", Href: filepath.Join(root, rpath) + "/", Type: opdsAcquisition},
-			{Rel: "start", Href: filepath.Join(root) + "/", Type: opdsAcquisition},
-		},
-		Title:   rpath,
-		Updated: time.Now(),
-		Author: author{
-			Name: "uopds",
-		},
-		Entries: []entry{},
+	f := feed{}
+
+	f.Links = []link{
+		// Ensure the trailing slash to prevent redirects
+		{Rel: "self", Href: filepath.Join(root, rpath) + "/", Type: opdsAcquisition},
+		{Rel: "start", Href: filepath.Join(root) + "/", Type: opdsAcquisition},
 	}
+
+	f.Title = rpath
+	f.Updated = time.Now()
+	f.Author = author{Name: "uopds"}
 
 	// Don't add an "up" entry if this is the root folder
 	if up := filepath.Dir(rpath); up != "." {
@@ -117,10 +115,8 @@ func genFeed(rpath string) (feed, error) {
 			// it's a directory, add an entry for it
 			f.Entries = append(f.Entries, entry{
 				Title:   file.Name(),
-				Author:  author{},
 				Links:   []link{{Rel: "subsection", Href: filepath.Join(root, rpath, file.Name()), Type: opdsAcquisition}},
 				Updated: time.Now(),
-				Content: content{},
 			})
 			continue
 		} else if !file.Type().IsRegular() {
