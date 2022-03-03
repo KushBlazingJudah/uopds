@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"time"
 )
 
@@ -40,7 +41,6 @@ func (opds) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	if stat.IsDir() {
 		// This is a directory, generate a feed for it
-
 		f, err := genFeed(path)
 		if err != nil {
 			w.WriteHeader(503)
@@ -103,31 +103,42 @@ func genFeed(rpath string) (feed, error) {
 	}
 
 	// Generate entries from folder
-	files, err := os.ReadDir(lpath)
+	dirEntries, err := os.ReadDir(lpath)
 	if err != nil {
 		return f, err
 	}
 
-	for _, file := range files {
-		relPath := filepath.Join(rpath, file.Name())
+	dirs := []string{}
+	files := []string{}
 
+	for _, file := range dirEntries {
 		if file.IsDir() {
 			// it's a directory, add an entry for it
-			f.Entries = append(f.Entries, entry{
-				Title:   file.Name(),
-				Links:   []link{{Rel: "subsection", Href: filepath.Join(root, rpath, file.Name()), Type: opdsAcquisition}},
-				Updated: time.Now(),
-			})
-			continue
-		} else if !file.Type().IsRegular() {
-			// ignore it
-			continue
+			dirs = append(dirs, file.Name())
+		} else if file.Type().IsRegular() {
+			// it's a file, add an entry for it
+			files = append(files, file.Name())
 		}
+	}
+
+	sort.Strings(dirs)
+	sort.Strings(files)
+
+	for _, dir := range dirs {
+		f.Entries = append(f.Entries, entry{
+			Title:   dir,
+			Links:   []link{{Rel: "subsection", Href: filepath.Join(root, rpath, dir), Type: opdsAcquisition}},
+			Updated: time.Now(),
+		})
+	}
+
+	for _, file := range files {
+		relPath := filepath.Join(rpath, file)
 
 		var e entry
 
 		// check extension
-		ext := filepath.Ext(file.Name())
+		ext := filepath.Ext(file)
 
 		// check if it's in the database
 		if e, err = db.path(context.Background(), relPath); err != nil {
