@@ -3,11 +3,8 @@ package main
 import (
 	"context"
 	"encoding/xml"
-	"errors"
 	"flag"
 	"fmt"
-	"io"
-	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -60,24 +57,7 @@ func (opds) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// It is a file, serve it
-	fp, err := os.OpenFile(lpath, os.O_RDONLY, 0) // Last arg isn't needed since we won't create it
-	if err != nil && errors.Is(err, fs.ErrNotExist) {
-		// File doesn't exist, send a 404
-		w.WriteHeader(404)
-		fmt.Fprint(w, err)
-		return
-	} else if err != nil {
-		// Some other error
-		w.WriteHeader(503)
-		fmt.Fprint(w, err)
-		return
-	}
-
-	if _, err := io.Copy(w, fp); err != nil {
-		// Close the connection and complain
-		log.Printf("error sending file %s: %v", lpath, err)
-		return
-	}
+	http.ServeFile(w, r, lpath)
 }
 
 func genFeed(rpath string) (feed, error) {
