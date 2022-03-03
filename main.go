@@ -44,8 +44,11 @@ func (opds) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
+		// Send the XML header
+		w.Write([]byte(`<?xml version="1.0" encoding="utf-8"?>`))
+
 		out := xml.NewEncoder(w)
-		out.Encode(f)
+		err = out.Encode(f)
 		if err != nil {
 			log.Printf("error marshalling feed for %s: %v", path, err)
 			return
@@ -61,7 +64,9 @@ func genFeed(rpath string) (feed, error) {
 	lpath := filepath.Join(bookDir, rpath)
 
 	// Base feed
-	f := feed{}
+	f := feed{
+		Xmlns: "http://www.w3.org/2005/Atom",
+	}
 
 	f.Links = []link{
 		// Ensure the trailing slash to prevent redirects

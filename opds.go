@@ -41,6 +41,7 @@ type entry struct {
 }
 
 type feed struct {
+	Xmlns string `xml:"xmlns,attr"`
 	entry
 
 	Entries []entry `xml:"entry"`
