@@ -93,7 +93,7 @@ func (db *database) add(ctx context.Context, e entry, source string) error {
 		sql.Named("date", e.Date),
 	}
 
-	_, err := db.conn.ExecContext(ctx, `INSERT INTO books(path, urn title,
+	_, err := db.conn.ExecContext(ctx, `INSERT INTO books(path, urn, title,
 author, language, summary, date) VALUES (:path, :urn, :title, :author,
 :language, :summary, :date)`, named...)
 	return err

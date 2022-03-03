@@ -3,8 +3,11 @@ package main
 import (
 	"context"
 	"encoding/xml"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
+	"io/fs"
 	"log"
 	"net/http"
 	"os"
@@ -20,31 +23,64 @@ var (
 // Dummy type for implementing http.Handler
 type opds struct{}
 
-func (_ opds) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (opds) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// Clean path as soon as we can
 	path := filepath.Clean(r.URL.Path)
 
-	f, err := genFeed(path)
+	// Local path is just the remote path but prefixed with bookDir
+	lpath := filepath.Join(bookDir, path)
+
+	// Check if it's a directory
+	stat, err := os.Stat(lpath)
 	if err != nil {
 		w.WriteHeader(503)
 		fmt.Fprint(w, err)
 		return
 	}
 
-	out, err := xml.Marshal(f)
-	if err != nil {
+	if stat.IsDir() {
+		// This is a directory, generate a feed for it
+
+		f, err := genFeed(path)
+		if err != nil {
+			w.WriteHeader(503)
+			fmt.Fprint(w, err)
+			return
+		}
+
+		out, err := xml.Marshal(f)
+		if err != nil {
+			w.WriteHeader(503)
+			fmt.Fprint(w, err)
+			return
+		}
+
+		w.Write(out)
+		return
+	}
+
+	// It is a file, serve it
+	fp, err := os.OpenFile(lpath, os.O_RDONLY, 0) // Last arg isn't needed since we won't create it
+	if err != nil && errors.Is(err, fs.ErrNotExist) {
+		// File doesn't exist, send a 404
+		w.WriteHeader(404)
+		fmt.Fprint(w, err)
+		return
+	} else if err != nil {
+		// Some other error
 		w.WriteHeader(503)
 		fmt.Fprint(w, err)
 		return
 	}
 
-	w.Write(out)
+	if _, err := io.Copy(w, fp); err != nil {
+		// Close the connection and complain
+		log.Printf("error sending file %s: %v", lpath, err)
+		return
+	}
 }
 
 func genFeed(rpath string) (feed, error) {
-	// Clean the file path to prevent path traversal attacks
-	rpath = filepath.Clean(rpath)
-
 	// Local path is just the remote path but prefixed with bookDir
 	lpath := filepath.Join(bookDir, rpath)
 
@@ -157,8 +193,6 @@ func main() {
 	}
 
 	http.Handle(_loc, http.StripPrefix(_loc, opds{}))
-
-	http.Handle(root+"/books/", http.StripPrefix(root+"/books/", http.FileServer(http.Dir(bookDir))))
 
 	log.Fatal(http.ListenAndServe(addr, nil))
 }
