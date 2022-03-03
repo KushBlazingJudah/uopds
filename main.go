@@ -124,31 +124,24 @@ func genFeed(rpath string) (feed, error) {
 			continue
 		}
 
+		var e entry
+
 		// check extension
 		ext := filepath.Ext(file.Name())
-		if ext != ".cbz" && ext != ".epub" {
-			// something else we don't care about
-			continue
-		}
-
-		var e entry
 
 		// check if it's in the database
 		if e, err = db.path(context.Background(), relPath); err != nil {
 			// it is not in the database, new file!
 			// index it, and add it to the database.
-			switch ext {
-			case ".cbz":
-				e, err = importCbz(relPath)
-			case ".epub":
-				e, err = importEpub(relPath)
-
-			default:
-				// unsupported
+			fn, ok := importers[ext]
+			if !ok {
+				// This file type is unknown to uopds; if this eats innocuous
+				// files, add support to importers in import.go.
 				continue
 			}
 
-			if err != nil {
+			// There exists an importer for this, try it out.
+			if e, err = fn(relPath); err != nil {
 				log.Printf("failed to import %s: %v", relPath, err)
 				continue
 			}
