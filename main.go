@@ -17,9 +17,35 @@ var (
 	db                          *database
 )
 
+// Dummy type for implementing http.Handler
+type opds struct{}
+
+func (_ opds) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Clean path as soon as we can
+	path := filepath.Clean(r.URL.Path)
+
+	f, err := genFeed(path)
+	if err != nil {
+		w.WriteHeader(503)
+		fmt.Fprint(w, err)
+		return
+	}
+
+	out, err := xml.Marshal(f)
+	if err != nil {
+		w.WriteHeader(503)
+		fmt.Fprint(w, err)
+		return
+	}
+
+	w.Write(out)
+}
+
 func genFeed(rpath string) (feed, error) {
 	// Clean the file path to prevent path traversal attacks
 	rpath = filepath.Clean(rpath)
+
+	// Local path is just the remote path but prefixed with bookDir
 	lpath := filepath.Join(bookDir, rpath)
 
 	// Base feed
@@ -111,7 +137,7 @@ func main() {
 	flag.Parse()
 
 	if root != "" && root[0] != '/' {
-		// Fixup root path
+		// Fixup root path, because it needs a preceeding slash
 		root = "/" + root
 	}
 
@@ -125,25 +151,12 @@ func main() {
 	_loc := root
 	if _loc == "" {
 		_loc = "/"
+	} else {
+		// Setup a redirect
+		http.Handle("/", http.RedirectHandler(root, http.StatusMovedPermanently))
 	}
 
-	http.HandleFunc(_loc, func(w http.ResponseWriter, r *http.Request) {
-		f, err := genFeed(r.URL.Path)
-		if err != nil {
-			w.WriteHeader(503)
-			fmt.Fprint(w, err)
-			return
-		}
-
-		out, err := xml.Marshal(f)
-		if err != nil {
-			w.WriteHeader(503)
-			fmt.Fprint(w, err)
-			return
-		}
-
-		w.Write(out)
-	})
+	http.Handle(_loc, http.StripPrefix(_loc, opds{}))
 
 	http.Handle(root+"/books/", http.StripPrefix(root+"/books/", http.FileServer(http.Dir(bookDir))))
 
