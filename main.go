@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -59,6 +60,27 @@ func (opds) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+func fixLinks(links []link) {
+	for i, link := range links {
+		if link.Href == "" {
+			// Assume it's to the root
+			link.Href = root
+			links[i] = link
+			continue
+		}
+
+		// TODO: this is probably not optimal but works
+		href, err := url.Parse(link.Href)
+		if err != nil {
+			// Should handle this...
+			panic(err)
+		}
+
+		link.Href = href.String()
+		links[i] = link
+	}
+}
+
 func genFeed(rpath string) (feed, error) {
 	// Local path is just the remote path but prefixed with bookDir
 	lpath := filepath.Join(bookDir, rpath)
@@ -70,8 +92,8 @@ func genFeed(rpath string) (feed, error) {
 
 	f.Links = []link{
 		// Ensure the trailing slash to prevent redirects
-		{Rel: "self", Href: filepath.Join(root, rpath) + "/", Type: opdsAcquisition},
-		{Rel: "start", Href: filepath.Join(root) + "/", Type: opdsAcquisition},
+		{Rel: "self", Href: filepath.Join(root, rpath), Type: opdsAcquisition},
+		{Rel: "start", Href: filepath.Join(root), Type: opdsAcquisition},
 	}
 
 	f.Title = rpath
@@ -82,6 +104,8 @@ func genFeed(rpath string) (feed, error) {
 	if up := filepath.Dir(rpath); up != "." {
 		f.Links = append(f.Links, link{Rel: "up", Href: filepath.Join(root, up), Type: opdsAcquisition})
 	}
+
+	fixLinks(f.Links)
 
 	// Generate entries from folder
 	dirEntries, err := os.ReadDir(lpath)
@@ -106,11 +130,13 @@ func genFeed(rpath string) (feed, error) {
 	sort.Strings(files)
 
 	for _, dir := range dirs {
-		f.Entries = append(f.Entries, entry{
+		e := entry{
 			Title:   dir,
 			Links:   []link{{Rel: "subsection", Href: filepath.Join(root, rpath, dir), Type: opdsAcquisition}},
 			Updated: time.Now(),
-		})
+		}
+		fixLinks(e.Links)
+		f.Entries = append(f.Entries, e)
 	}
 
 	for _, file := range files {
@@ -139,6 +165,8 @@ func genFeed(rpath string) (feed, error) {
 			}
 		}
 
+		fixLinks(e.Links)
+
 		f.Entries = append(f.Entries, e)
 	}
 
@@ -157,6 +185,14 @@ func main() {
 	if root != "" && root[0] != '/' {
 		// Fixup root path, because it needs a preceeding slash
 		root = "/" + root
+	} else if root == "" {
+		root = "/"
+	}
+
+	if root[len(root)-1] != '/' {
+		// If we don't include the trailing slash, StripPrefix will act in unexpected ways.
+		// This has the side effect of making "http://server/root" redirect to "http://server/root/".
+		root += "/"
 	}
 
 	// read database
@@ -168,21 +204,12 @@ func main() {
 
 	smux := &http.ServeMux{}
 
-	_loc := root
-	if _loc == "" {
-		_loc = "/"
-	} else {
-		if _loc[len(_loc)-1] != '/' {
-			// If we don't include the trailing slash, StripPrefix will act in unexpected ways.
-			// This has the side effect of making "http://server/root" redirect to "http://server/root/".
-			_loc += "/"
-		}
-
-		// Setup a redirect and fix root
-		smux.Handle("/", http.RedirectHandler(_loc, http.StatusMovedPermanently))
+	// Setup a redirect
+	if root != "/" {
+		smux.Handle("/", http.RedirectHandler(root, http.StatusMovedPermanently))
 	}
 
-	smux.Handle(_loc, http.StripPrefix(_loc, opds{}))
+	smux.Handle(root, http.StripPrefix(root, opds{}))
 
 	srv := &http.Server{
 		ReadTimeout:  10 * time.Second,
