@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/url"
 	"path/filepath"
-	"time"
 
 	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
@@ -64,9 +63,7 @@ func (db *database) path(path string) (entry, error) {
 	)
 
 	row := db.conn.QueryRow("SELECT path, urn, title, author, language, summary, date FROM books WHERE path = ?", path)
-	if err := row.Scan(&source, &e.ID, &e.Title, &e.Author.Name, &e.Language, &e.Summary, &e.Date); err != nil {
-		return e, err
-	}
+	err := row.Scan(&source, &e.ID, &e.Title, &e.Author.Name, &e.Language, &e.Summary, &e.Date)
 
 	e.Links = []link{
 		{
@@ -81,10 +78,10 @@ func (db *database) path(path string) (entry, error) {
 		},
 	}
 
-	// TODO: this is probably not the best thing to do, but i'm told i need it
-	e.Updated = time.Now()
+	// Get the modify time for the file
+	e.Updated = modTime(path)
 
-	return e, nil
+	return e, err
 }
 
 func (db *database) add(e entry, source string) error {

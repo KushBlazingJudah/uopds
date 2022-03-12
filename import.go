@@ -29,11 +29,6 @@ var importers = map[string]importer{
 	"":     importGeneric,
 }
 
-// genUrn generates an urn:uuid object
-func genUrn() string {
-	return uuid.New().URN()
-}
-
 // importEpub imports an EPUB into the database by reading the contained metadata.
 func importEpub(path string) (entry, error) {
 	opf, err := readOpfFromEpub(path)
@@ -45,9 +40,6 @@ func importEpub(path string) (entry, error) {
 	if err != nil {
 		return entry, err
 	}
-
-	// generate urn
-	entry.ID = genUrn()
 
 	// add it to the database
 	err = db.add(entry, path)
@@ -70,7 +62,7 @@ func importGeneric(path string) (entry, error) {
 		// Infer the title from the filename; assume the filename sans extension is fine.
 		Title: strings.TrimSuffix(filepath.Base(path), ext),
 
-		ID: genUrn(),
+		ID: uuid.New().URN(),
 
 		Author: author{Name: "Unknown author"},
 		Links: []link{

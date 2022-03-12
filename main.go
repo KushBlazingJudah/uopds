@@ -18,6 +18,17 @@ var (
 	db                          *database
 )
 
+// modTime will attempt to get the modification date for a path.
+// If it is unable to, it will return the current date.
+func modTime(path string) time.Time {
+	stat, err := os.Stat(filepath.Join(bookDir, path))
+	if err == nil {
+		return stat.ModTime()
+	}
+
+	return time.Now()
+}
+
 // Dummy type for implementing http.Handler
 type opds struct{}
 
@@ -77,7 +88,7 @@ func genFeed(rpath string) (feed, error) {
 	}
 
 	f.Title = rpath
-	f.Updated = time.Now()
+	f.Updated = modTime(rpath)
 	f.Author = author{Name: "uopds"}
 
 	// Don't add an "up" entry if this is the root folder
@@ -108,10 +119,14 @@ func genFeed(rpath string) (feed, error) {
 	sort.Strings(files)
 
 	for _, dir := range dirs {
+		// Shouldn't throw away errors, but it isn't vitally important.
+		urn, _ := db.dir(filepath.Join(rpath, dir))
+
 		e := entry{
 			Title:   dir,
 			Links:   []link{{Rel: "subsection", Href: url.URL{Path: filepath.Join(root, rpath, dir)}, Type: opdsAcquisition}},
-			Updated: time.Now(),
+			Updated: modTime(dir),
+			ID:      urn,
 		}
 
 		f.Entries = append(f.Entries, e)

@@ -6,8 +6,8 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
-	"time"
 
+	"github.com/google/uuid"
 	"golang.org/x/net/html/charset"
 )
 
@@ -51,9 +51,10 @@ func (pkg opfPackage) genEntry() (entry, error) {
 				Type: "application/epub+zip",
 			},
 		},
-		Updated: time.Now(),
+		Updated: modTime(pkg.file),
 		Summary: summary(pkg.Description),
 		Date:    pkg.Date,
+		ID:      uuid.New().URN(),
 	}, nil
 }
 
