@@ -6,14 +6,11 @@ import (
 	"time"
 )
 
-const (
-	opdsAcquisition = "application/atom+xml;profile=opds-catalog;kind=acquisition"
-)
+const opdsAcquisition = "application/atom+xml;profile=opds-catalog;kind=acquisition"
 
 type link struct {
-	Rel  string
-	Href url.URL
-	Type string
+	Rel, Type string
+	Href      url.URL
 }
 
 func (l link) MarshalXML(e *xml.Encoder, start xml.StartElement) error {

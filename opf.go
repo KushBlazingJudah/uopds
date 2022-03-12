@@ -41,11 +41,7 @@ func readXMLZip(path string, zr *zip.Reader, v interface{}) error {
 }
 
 func (pkg opfPackage) genEntry() (entry, error) {
-	/* if err := os.Mkdir(coverDir, 0); err != nil {
-		return entry{}, err
-	} */
-
-	e := entry{
+	return entry{
 		Title:  pkg.Title,
 		Author: author{Name: pkg.Creator},
 		Links: []link{
@@ -58,10 +54,7 @@ func (pkg opfPackage) genEntry() (entry, error) {
 		Updated: time.Now(),
 		Summary: summary(pkg.Description),
 		Date:    pkg.Date,
-	}
-
-	// make entry!
-	return e, nil
+	}, nil
 }
 
 func readOpfFromEpub(file string) (opfPackage, error) {

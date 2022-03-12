@@ -1,16 +1,13 @@
 package main
 
 import (
-	"crypto/sha1"
-	"encoding/base32"
-	"fmt"
-	"io"
 	"mime"
 	"net/url"
-	"os"
 	"path/filepath"
 	"strings"
 	"time"
+
+	"github.com/google/uuid"
 )
 
 type importer func(string) (entry, error)
@@ -32,27 +29,9 @@ var importers = map[string]importer{
 	"":     importGeneric,
 }
 
-// genUrn generates an urn:sha1 ID based on a file.
-func genUrn(path string) (string, error) {
-	// Open the file for hashing.
-	fp, err := os.Open(filepath.Join(bookDir, path))
-	if err != nil {
-		return "", err
-	}
-	defer fp.Close()
-
-	// Generate the urn
-	digest := sha1.New()
-	if _, err := io.Copy(digest, fp); err != nil {
-		return "", err
-	}
-
-	hash := digest.Sum(nil)
-
-	// urn:sha1 asks that we use base32 without padding.
-	enc := base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(hash)
-
-	return enc, err
+// genUrn generates an urn:uuid object
+func genUrn() string {
+	return uuid.New().URN()
 }
 
 // importEpub imports an EPUB into the database by reading the contained metadata.
@@ -68,12 +47,7 @@ func importEpub(path string) (entry, error) {
 	}
 
 	// generate urn
-	urn, err := genUrn(path)
-	if err != nil {
-		return entry, err
-	}
-
-	entry.ID = fmt.Sprintf("urn:sha1:%s", urn)
+	entry.ID = genUrn()
 
 	// add it to the database
 	err = db.add(entry, path)
@@ -96,6 +70,8 @@ func importGeneric(path string) (entry, error) {
 		// Infer the title from the filename; assume the filename sans extension is fine.
 		Title: strings.TrimSuffix(filepath.Base(path), ext),
 
+		ID: genUrn(),
+
 		Author: author{Name: "Unknown author"},
 		Links: []link{
 			{
@@ -107,15 +83,6 @@ func importGeneric(path string) (entry, error) {
 		Updated: time.Now(),
 	}
 
-	// generate urn
-	urn, err := genUrn(path)
-	if err != nil {
-		return entry, err
-	}
-
-	entry.ID = fmt.Sprintf("urn:sha1:%s", urn)
-
 	// add it to the database
-	err = db.add(entry, path)
-	return entry, err
+	return entry, db.add(entry, path)
 }
