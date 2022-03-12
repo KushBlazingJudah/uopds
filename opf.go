@@ -3,6 +3,7 @@ package main
 import (
 	"archive/zip"
 	"encoding/xml"
+	"net/url"
 	"os"
 	"path/filepath"
 	"time"
@@ -50,7 +51,7 @@ func (pkg opfPackage) genEntry() (entry, error) {
 		Links: []link{
 			{
 				Rel:  "http://opds-spec.org/acquisition",
-				Href: filepath.Join(root, pkg.file),
+				Href: url.URL{Path: filepath.Join(root, pkg.file)},
 				Type: "application/epub+zip",
 			},
 		},

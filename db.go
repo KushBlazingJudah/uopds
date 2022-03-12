@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"net/url"
 	"path/filepath"
 	"time"
 
@@ -64,7 +65,7 @@ func (db *database) path(path string) (entry, error) {
 			// We don't ever perform anything with the entry that is returned
 			// by this function so add on the root path to the source.
 			// It makes life mildly easier.
-			Href: filepath.Join(root, source),
+			Href: url.URL{Path: filepath.Join(root, source)},
 
 			Type: "application/epub+zip",
 		},

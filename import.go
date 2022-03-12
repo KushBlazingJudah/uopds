@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"mime"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -99,7 +100,7 @@ func importGeneric(path string) (entry, error) {
 		Links: []link{
 			{
 				Rel:  "http://opds-spec.org/acquisition",
-				Href: filepath.Join(bookDir, path),
+				Href: url.URL{Path: filepath.Join(bookDir, path)},
 				Type: mime,
 			},
 		},

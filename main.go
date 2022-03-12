@@ -60,27 +60,6 @@ func (opds) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func fixLinks(links []link) {
-	for i, link := range links {
-		if link.Href == "" {
-			// Assume it's to the root
-			link.Href = root
-			links[i] = link
-			continue
-		}
-
-		// TODO: this is probably not optimal but works
-		href, err := url.Parse(link.Href)
-		if err != nil {
-			// Should handle this...
-			panic(err)
-		}
-
-		link.Href = href.String()
-		links[i] = link
-	}
-}
-
 func genFeed(rpath string) (feed, error) {
 	// Local path is just the remote path but prefixed with bookDir
 	lpath := filepath.Join(bookDir, rpath)
@@ -92,8 +71,8 @@ func genFeed(rpath string) (feed, error) {
 
 	f.Links = []link{
 		// Ensure the trailing slash to prevent redirects
-		{Rel: "self", Href: filepath.Join(root, rpath), Type: opdsAcquisition},
-		{Rel: "start", Href: filepath.Join(root), Type: opdsAcquisition},
+		{Rel: "self", Href: url.URL{Path: filepath.Join(root, rpath)}, Type: opdsAcquisition},
+		{Rel: "start", Href: url.URL{Path: filepath.Join(root)}, Type: opdsAcquisition},
 	}
 
 	f.Title = rpath
@@ -102,10 +81,8 @@ func genFeed(rpath string) (feed, error) {
 
 	// Don't add an "up" entry if this is the root folder
 	if up := filepath.Dir(rpath); up != "." {
-		f.Links = append(f.Links, link{Rel: "up", Href: filepath.Join(root, up), Type: opdsAcquisition})
+		f.Links = append(f.Links, link{Rel: "up", Href: url.URL{Path: filepath.Join(root, up)}, Type: opdsAcquisition})
 	}
-
-	fixLinks(f.Links)
 
 	// Generate entries from folder
 	dirEntries, err := os.ReadDir(lpath)
@@ -132,10 +109,10 @@ func genFeed(rpath string) (feed, error) {
 	for _, dir := range dirs {
 		e := entry{
 			Title:   dir,
-			Links:   []link{{Rel: "subsection", Href: filepath.Join(root, rpath, dir), Type: opdsAcquisition}},
+			Links:   []link{{Rel: "subsection", Href: url.URL{Path: filepath.Join(root, rpath, dir)}, Type: opdsAcquisition}},
 			Updated: time.Now(),
 		}
-		fixLinks(e.Links)
+
 		f.Entries = append(f.Entries, e)
 	}
 
@@ -164,8 +141,6 @@ func genFeed(rpath string) (feed, error) {
 				continue
 			}
 		}
-
-		fixLinks(e.Links)
 
 		f.Entries = append(f.Entries, e)
 	}
@@ -207,6 +182,7 @@ func main() {
 	// Setup a redirect
 	if root != "/" {
 		smux.Handle("/", http.RedirectHandler(root, http.StatusMovedPermanently))
+		smux.Handle(root[:len(root)-1], http.StripPrefix(root[:len(root)-1], opds{}))
 	}
 
 	smux.Handle(root, http.StripPrefix(root, opds{}))

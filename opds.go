@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/xml"
+	"net/url"
 	"time"
 )
 
@@ -10,9 +11,23 @@ const (
 )
 
 type link struct {
-	Rel  string `xml:"rel,attr"`
-	Href string `xml:"href,attr"`
-	Type string `xml:"type,attr"`
+	Rel  string
+	Href url.URL
+	Type string
+}
+
+func (l link) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
+	start.Attr = []xml.Attr{
+		{Name: xml.Name{Local: "rel"}, Value: l.Rel},
+		{Name: xml.Name{Local: "href"}, Value: l.Href.String()},
+		{Name: xml.Name{Local: "type"}, Value: l.Type},
+	}
+
+	if err := e.EncodeToken(start); err != nil {
+		return err
+	}
+
+	return e.EncodeToken(xml.EndElement{Name: start.Name})
 }
 
 type author struct {
