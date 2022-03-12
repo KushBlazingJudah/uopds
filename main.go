@@ -89,7 +89,6 @@ func genFeed(rpath string) (feed, error) {
 
 	f.Title = rpath
 	f.Updated = modTime(rpath)
-	f.Author = author{Name: "uopds"}
 
 	// Don't add an "up" entry if this is the root folder
 	if up := filepath.Dir(rpath); up != "." {

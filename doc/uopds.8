@@ -1,0 +1,57 @@
+.TH uopds 8 "2022-03-12" v1.0.0 uopds
+.
+.SH NAME
+uopds - bare minimum OPDS server
+.SH SYNOPSIS
+uopds [\-addr listen_address] [\-books directory] [\-db file] [\-root server_root]
+.
+.SH DESCRIPTION
+uopds is an OPDS server implementing nothing more than the bare minimum needed.
+It will serve a directory of files, generating OPDS catalogues for each
+directory, and serving each file inside of said directories.
+
+uopds is meant to be run behind a reverse proxy; no authentication, caching, nor
+TLS is done, and it will never be supported.
+However, it can very well be run as a raw server if you have no need for any of
+these.
+.
+.SH OPTIONS
+.TP
+.B \-addr <address>
+Set the listen address for the HTTP server.
+The default is \fB:8080\fP, which is effectively \fB0.0.0.0:8080\fP.
+.TP
+.B \-books <directory>
+uopds will look into this directory for books.
+There is no enforced structure; just ensure this directory exists, and put files
+inside of it.
+uopds will handle it just fine as long as it can read the files.
+The default is \fB./books\fP.
+.TP
+.B \-db <database>
+uopds uses an SQLite3 database to cache some information and to ensure
+everything has a unique UUID.
+uopds will create and populate this database itself.
+The default is \fB./database\fP.
+.TP
+.B \-root <root>
+As uopds is designed to be run behind a reverse proxy, it is not always
+convenient to dedicate an entire subdomain to uopds or to dedicate a port to
+uopds.
+This option will allow you to specify the server root of uopds in case you need
+to set one.
+Everything uopds exposes will then be served under that path, and any requests
+outside of that path will redirect to the server root.
+There is \fBno\fP default.
+.
+.SH BUGS
+None known.
+Report or view bugs at
+.UR https://github.com/KushBlazingJudah/issues
+the project's GitHub page
+.UE .
+.
+.SH AUTHOR
+.UR https://wsmj.neocities.org
+WeedSmokingJew
+.UE
