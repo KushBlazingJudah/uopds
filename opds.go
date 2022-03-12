@@ -41,7 +41,7 @@ func (s summary) MarshalXML(e *xml.Encoder, start xml.StartElement) error {
 
 type entry struct {
 	Title   string    `xml:"title"`            // necessary
-	Author  author    `xml:"author,omitempty"` // optional, but should
+	Author  author    `xml:"author,omitempty"` // optional
 	Links   []link    `xml:"link"`
 	ID      string    `xml:"id"`      // necessary, should be unique
 	Updated time.Time `xml:"updated"` // necessary
@@ -53,7 +53,10 @@ type entry struct {
 }
 
 type feed struct {
-	Xmlns string `xml:"xmlns,attr"`
+	// Go's native XML encoder has pretty awful support for namespaces, so this is the best way to circumvent it.
+	Xmlns   string `xml:"xmlns,attr"`
+	XmlnsDc string `xml:"xmlns:dc,attr"`
+
 	entry
 
 	Entries []entry `xml:"entry"`

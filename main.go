@@ -66,7 +66,8 @@ func genFeed(rpath string) (feed, error) {
 
 	// Base feed
 	f := feed{
-		Xmlns: "http://www.w3.org/2005/Atom",
+		Xmlns:   "http://www.w3.org/2005/Atom",
+		XmlnsDc: "http://purl.org/dc/terms/",
 	}
 
 	f.Links = []link{
@@ -145,7 +146,10 @@ func genFeed(rpath string) (feed, error) {
 		f.Entries = append(f.Entries, e)
 	}
 
-	return f, nil
+	// Give it a unique ID as required
+	f.ID, err = db.dir(lpath)
+
+	return f, err
 }
 
 func main() {

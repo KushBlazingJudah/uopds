@@ -2,10 +2,12 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"net/url"
 	"path/filepath"
 	"time"
 
+	"github.com/google/uuid"
 	_ "github.com/mattn/go-sqlite3"
 )
 
@@ -24,6 +26,14 @@ CREATE TABLE IF NOT EXISTS books(
 	date TEXT,
 
 	UNIQUE(path)
+);
+
+CREATE TABLE IF NOT EXISTS dirs(
+	path TEXT NOT NULL,
+	urn TEXT NOT NULL,
+
+	UNIQUE(path),
+	UNIQUE(urn)
 );
 `
 
@@ -92,4 +102,22 @@ func (db *database) add(e entry, source string) error {
 author, language, summary, date) VALUES (:path, :urn, :title, :author,
 :language, :summary, :date)`, named...)
 	return err
+}
+
+func (db *database) dir(path string) (string, error) {
+	path = filepath.Clean(path)
+
+	r := db.conn.QueryRow(`SELECT urn FROM dirs WHERE path = ?`, path)
+
+	urn := ""
+	err := r.Scan(&urn)
+
+	if urn == "" && errors.Is(err, sql.ErrNoRows) {
+		// Need to generate one
+		urn = uuid.New().URN()
+
+		_, err = db.conn.Exec("INSERT INTO dirs(path, urn) VALUES(?,?)", path, urn)
+	}
+
+	return urn, err
 }
