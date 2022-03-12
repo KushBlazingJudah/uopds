@@ -20,7 +20,7 @@ and appreciated.
 
 ## Running
 
-Build with `go build` and use the `uopds` binary.
+Simply run `make && ./uopds`.
 
 uopds by default has everything in its current working directory; it will look
 for books in `books` and store its database in `database`.
